@@ -58,7 +58,7 @@ export async function runExport(
       data.outputWidth || p.width,
       data.outputHeight || p.height,
     );
-    renderer = new SceneRenderer(canvas, true);
+    renderer = new SceneRenderer(canvas);
     let target: StreamTarget | BufferTarget;
     try {
       dir = await (

@@ -37,7 +37,7 @@ export function visualAlpha(c: Clip, frame: number) {
   return Math.max(0, Math.min(1, f / n, (c.durationFrames - 1 - f) / n));
 }
 export function sceneAt(p: Project, frame: number) {
-  return p.tracks
+  const items = p.tracks
     .slice()
     .reverse()
     .filter((t) => !t.hidden)
@@ -85,6 +85,13 @@ export function sceneAt(p: Project, frame: number) {
         };
       });
     });
+  const layerPriority = (clip: Clip) =>
+    clip.type === 'text' || clip.type === 'caption'
+      ? 2
+      : clip.type === 'shape'
+        ? 1
+        : 0;
+  return items.sort((a, b) => layerPriority(a.clip) - layerPriority(b.clip));
 }
 export function audioGain(c: Clip, localFrame: number) {
   if (c.muted) return 0;

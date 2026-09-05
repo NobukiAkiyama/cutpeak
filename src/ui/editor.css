@@ -1145,16 +1145,9 @@ h3 {
   color: #b9a4d0;
   border-radius: 6px;
 }
-.timeline-add-track:hover,
-.timeline-add-track[data-popup-open] {
+.timeline-add-track:hover {
   color: #e0c9ff;
   background: #35283f;
-}
-.timeline-add-menu {
-  width: 190px !important;
-  background: #1d1922 !important;
-  color: #eee7f5 !important;
-  border: 1px solid #44394c;
 }
 .ruler {
   height: 32px;

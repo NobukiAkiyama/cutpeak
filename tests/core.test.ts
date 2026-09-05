@@ -97,9 +97,9 @@ describe('non-destructive commands', () => {
     for (const type of ['clip.delete', 'clip.duplicate'] as const)
       expect(() => applyCommand(p, { type, clipId: c.id })).toThrow('ロック');
   });
-  it('moves between compatible tracks', () => {
+  it('moves clips between tracks regardless of media type', () => {
     const { p, c } = fixture();
-    const t = makeTrack('video');
+    const t = makeTrack('audio');
     p.tracks.push(t);
     const r = applyCommand(p, {
       type: 'clip.move',
@@ -110,16 +110,15 @@ describe('non-destructive commands', () => {
     expect(r.project.tracks[1].clips).toHaveLength(0);
     expect(r.project.tracks.at(-1)!.clips[0].startFrame).toBe(41);
   });
-  it('rejects incompatible tracks', () => {
-    const { p, c } = fixture();
-    expect(() =>
-      applyCommand(p, {
-        type: 'clip.move',
-        clipId: c.id,
-        startFrame: 0,
-        trackId: p.tracks[2].id,
-      }),
-    ).toThrow('移動');
+  it('adds clips to tracks regardless of media type', () => {
+    const { p } = fixture();
+    const text = makeClip(p, 'text');
+    const result = applyCommand(p, {
+      type: 'clip.add',
+      trackId: p.tracks[2].id,
+      clip: text,
+    })!;
+    expect(result.project.tracks[2].clips.at(-1)?.id).toBe(text.id);
   });
   it('duplicates with new identity and shared asset', () => {
     const { p, c } = fixture();
@@ -308,12 +307,15 @@ describe('time, animation and captions', () => {
     expect(snapFrame(97, [0, 50, 100], 4)).toBe(100);
     expect(snapFrame(94, [0, 50, 100], 4)).toBe(94);
   });
-  it('orders lower tracks beneath upper text and hides tracks', () => {
+  it('keeps overlay tracks above media and hides tracks', () => {
     const { p } = fixture();
     const c = makeClip(p, 'text');
     p.tracks[0].clips.push(c);
     expect(sceneAt(p, 0).map((i) => i.clip.type)).toEqual(['video', 'text']);
-    p.tracks[0].hidden = true;
+    const [textTrack] = p.tracks.splice(0, 1);
+    p.tracks.push(textTrack);
+    expect(sceneAt(p, 0).map((i) => i.clip.type)).toEqual(['video', 'text']);
+    textTrack.hidden = true;
     expect(sceneAt(p, 0).map((i) => i.clip.type)).toEqual(['video']);
   });
   it('uses half-open clip intervals', () => {

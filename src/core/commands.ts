@@ -168,8 +168,6 @@ export function applyCommand(
   } else if (cmd.type === 'clip.add') {
     const t = p.tracks.find((t) => t.id === cmd.trackId);
     if (!t || t.locked) throw Error('トラックを編集できません');
-    if (t.type !== cmd.clip.type)
-      throw Error('クリップと同じ種類のトラックを選んでください');
     t.clips.push(clone(cmd.clip));
     target = cmd.clip.name;
     frame = cmd.clip.startFrame;
@@ -194,8 +192,7 @@ export function applyCommand(
       case 'clip.move': {
         if (cmd.trackId && cmd.trackId !== t.id) {
           const dest = p.tracks.find((t) => t.id === cmd.trackId);
-          if (!dest || dest.locked || dest.type !== c.type)
-            throw Error('このトラックへ移動できません');
+          if (!dest || dest.locked) throw Error('このトラックへ移動できません');
           t.clips = t.clips.filter((x) => x.id !== c.id);
           dest.clips.push(c);
         }

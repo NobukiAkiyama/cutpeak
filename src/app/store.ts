@@ -228,7 +228,7 @@ export const api = {
   ) {
     const p = useEditor.getState().project;
     const track = trackId
-      ? p.tracks.find((t) => t.id === trackId && !t.locked && t.type === type)
+      ? p.tracks.find((t) => t.id === trackId && !t.locked)
       : p.tracks.find((t) => t.type === type && !t.locked);
     const c = makeClip(
       p,

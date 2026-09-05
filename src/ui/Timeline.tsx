@@ -29,6 +29,7 @@ import {
   Image,
   Shapes,
   Captions,
+  Layers3,
 } from 'lucide-react';
 import { api, useEditor, importFiles } from '../app/store';
 import {
@@ -39,16 +40,9 @@ import {
   findClip,
   type Clip,
   type Track,
-  type ClipKind,
 } from '../core/model';
 import { snapFrame } from '../core/timeline';
 import { Range } from './controls';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { usePanelLayout } from './workspace-state';
 import { watchPress } from './touch-press';
 const icons = {
@@ -257,8 +251,7 @@ export default function Timeline() {
           .elementFromPoint(ev.clientX, ev.clientY)
           ?.closest<HTMLElement>('[data-track-id]');
         const target = project.tracks.find(
-          (t) =>
-            t.id === row?.dataset.trackId && !t.locked && t.type === c.type,
+          (t) => t.id === row?.dataset.trackId && !t.locked,
         );
         api.preview([
           {
@@ -350,46 +343,22 @@ export default function Timeline() {
           <div className="ruler-row">
             <div className="ruler-label">
               <span>トラック</span>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className="timeline-add-track"
-                  title="トラックを追加"
-                  aria-label="トラックを追加"
-                >
-                  <Plus size={15} />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  className="timeline-add-menu"
-                  side="bottom"
-                  align="start"
-                >
-                  {(Object.keys(icons) as ClipKind[]).map((kind) => {
-                    const Icon = icons[kind];
-                    const labels: Record<ClipKind, string> = {
-                      video: '映像トラック',
-                      audio: '音声トラック',
-                      image: '画像トラック',
-                      text: 'テキストトラック',
-                      caption: '字幕トラック',
-                      shape: '図形トラック',
-                    };
-                    return (
-                      <DropdownMenuItem
-                        key={kind}
-                        onClick={() =>
-                          api.execute({
-                            type: 'track.add',
-                            track: makeTrack(kind),
-                          })
-                        }
-                      >
-                        <Icon size={15} />
-                        {labels[kind]}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <button
+                className="timeline-add-track"
+                title="種類を問わないトラックを追加"
+                aria-label="トラックを追加"
+                onClick={() =>
+                  api.execute({
+                    type: 'track.add',
+                    track: makeTrack(
+                      'video',
+                      `トラック ${project.tracks.length + 1}`,
+                    ),
+                  })
+                }
+              >
+                <Plus size={15} />
+              </button>
             </div>
             <div className="ruler" style={{ width }} onPointerDown={scrub}>
               {Array.from(
@@ -409,7 +378,6 @@ export default function Timeline() {
             </div>
           </div>
           {project.tracks.map((t, index) => {
-            const Icon = icons[t.type];
             return (
               <div
                 key={t.id}
@@ -418,7 +386,7 @@ export default function Timeline() {
               >
                 <div className="track-header">
                   <div className="track-title">
-                    <Icon size={14} />
+                    <Layers3 size={14} />
                     <span title={t.name}>{t.name}</span>
                     <div className="track-order">
                       <button
@@ -524,14 +492,8 @@ export default function Timeline() {
                         a.id ===
                         e.dataTransfer.getData('application/framecut-asset'),
                     );
-                    if (a) {
-                      api.addClip(
-                        a.kind,
-                        a,
-                        at,
-                        t.type === a.kind ? t.id : undefined,
-                      );
-                    } else
+                    if (a) api.addClip(a.kind, a, at, t.id);
+                    else
                       void importFiles(Array.from(e.dataTransfer.files), {
                         addToTimeline: true,
                         frame: at,
@@ -545,6 +507,7 @@ export default function Timeline() {
                   )}
                   {t.clips.map((c) => {
                     const a = project.assets.find((a) => a.id === c.assetId);
+                    const ClipIcon = icons[c.type];
                     return (
                       <div
                         key={c.id}
@@ -592,7 +555,7 @@ export default function Timeline() {
                           }
                         />
                         <div className="clip-title">
-                          <Icon size={11} />
+                          <ClipIcon size={11} />
                           <span>{c.text || c.name}</span>
                         </div>
                         {a?.waveform?.length ? (
