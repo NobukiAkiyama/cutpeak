@@ -192,32 +192,6 @@ export default function Timeline() {
     );
   const width = Math.max(800, timelineFrames * zoom);
   const rulerStep = Math.max(1, Math.ceil(75 / (zoom * fps(project))));
-  function scrub(e: ReactPointerEvent) {
-    if (e.button !== 0 || !e.isPrimary) return;
-    e.preventDefault();
-    const node = e.currentTarget as HTMLElement;
-    node.setPointerCapture(e.pointerId);
-    const update = (x: number) => {
-      const rect = node.getBoundingClientRect();
-      api.seek((x - rect.left) / zoom);
-    };
-    const startX = e.clientX;
-    let dragging = false;
-    const move = (ev: PointerEvent) => update(ev.clientX);
-    const dragMove = (ev: PointerEvent) => {
-      if (!dragging && Math.abs(ev.clientX - startX) < 4) return;
-      dragging = true;
-      move(ev);
-    };
-    const end = () => {
-      node.removeEventListener('pointermove', dragMove);
-      node.removeEventListener('pointerup', end);
-      node.removeEventListener('pointercancel', end);
-    };
-    node.addEventListener('pointermove', dragMove);
-    node.addEventListener('pointerup', end, { once: true });
-    node.addEventListener('pointercancel', end, { once: true });
-  }
   function drag(
     e: ReactPointerEvent,
     c: Clip,
@@ -412,7 +386,7 @@ export default function Timeline() {
                 <Plus size={15} />
               </button>
             </div>
-            <div className="ruler" style={{ width }} onPointerDown={scrub}>
+            <div className="ruler" style={{ width }}>
               {Array.from(
                 {
                   length:
