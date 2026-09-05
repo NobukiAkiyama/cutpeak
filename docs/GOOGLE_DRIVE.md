@@ -8,7 +8,7 @@
    - `http://127.0.0.1:5173`
    - `http://localhost:5173`（このURLを使う場合）
    - `http://127.0.0.1:4173`（本番ビルドのプレビュー）
-   - `https://framecut-video-editor.mimi11211.chatgpt.site`（このプロジェクトの確認用ホスト）
+   - `https://cutpeak.v26001.workers.dev`（現在の公開先）
 6. API Key を作成し、使用する生成元の HTTP リファラーと Google Picker API / Drive API に制限します。
 7. OAuth Client ID、API Key、Google Cloud のプロジェクト**番号**を、`.env.local` または公開環境のビルド設定へ登録します。プロジェクト番号が App ID です。プロジェクト名や文字列のプロジェクトIDではありません。
 
