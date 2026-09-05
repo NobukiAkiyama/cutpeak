@@ -1,0 +1,1 @@
+class FramecutOutput extends AudioWorkletProcessor {process(inputs,outputs){const input=inputs[0],output=outputs[0];for(let c=0;c<output.length;c++){const src=input[c]||input[0];if(src)output[c].set(src);else output[c].fill(0);}return true;}}registerProcessor('framecut-output',FramecutOutput);
