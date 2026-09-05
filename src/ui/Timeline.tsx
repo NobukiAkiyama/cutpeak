@@ -378,6 +378,7 @@ export default function Timeline() {
             </div>
           </div>
           {project.tracks.map((t, index) => {
+            const displayName = `トラック ${index + 1}`;
             return (
               <div
                 key={t.id}
@@ -387,7 +388,7 @@ export default function Timeline() {
                 <div className="track-header">
                   <div className="track-title">
                     <Layers3 size={14} />
-                    <span title={t.name}>{t.name}</span>
+                    <span title={displayName}>{displayName}</span>
                     <div className="track-order">
                       <button
                         title="トラックを上へ"

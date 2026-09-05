@@ -148,16 +148,7 @@ export const defaultTransform = (p: Project): Transform =>
   ) as unknown as Transform;
 export const makeTrack = (type: ClipKind, name?: string): Track => ({
   id: id(),
-  name:
-    name ||
-    {
-      video: '映像',
-      audio: '音声',
-      image: '画像',
-      text: 'テキスト',
-      caption: '字幕',
-      shape: '図形',
-    }[type],
+  name: name || 'トラック',
   type,
   locked: false,
   hidden: false,
@@ -180,9 +171,9 @@ export function makeProject(
     fps: rate,
     background: '#000000',
     tracks: [
-      makeTrack('text'),
-      makeTrack('video', '映像 1'),
-      makeTrack('audio', '音声 1'),
+      makeTrack('text', 'トラック 1'),
+      makeTrack('video', 'トラック 2'),
+      makeTrack('audio', 'トラック 3'),
     ],
     assets: [],
     createdAt: now,

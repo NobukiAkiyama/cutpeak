@@ -242,7 +242,7 @@ export const api = {
       c.style.strokeWidth = 3;
     }
     api.begin('クリップを追加');
-    const t = track || makeTrack(type);
+    const t = track || makeTrack(type, `トラック ${p.tracks.length + 1}`);
     if (!track) api.execute({ type: 'track.add', track: t });
     if (!trackId && asset && track)
       c.startFrame = Math.max(
