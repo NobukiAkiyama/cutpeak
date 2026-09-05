@@ -934,3 +934,178 @@ button:hover {
     height: 36px;
   }
 }
+
+/* Touch gestures: swipe to scroll, hold for actions, explicitly arm clip movement. */
+.timeline-clip {
+  -webkit-touch-callout: none;
+  touch-action: pan-x pan-y;
+}
+.track-lane {
+  touch-action: pan-x pan-y;
+}
+.timeline.touch-move-mode .track-lane,
+.timeline.touch-move-mode .timeline-clip {
+  touch-action: none;
+}
+.clip-actions-sheet {
+  background: #1c1722 !important;
+  color: #f3ecfc;
+  border-radius: 24px 24px 0 0;
+  max-height: 85dvh;
+  overflow: auto;
+  padding: 24px max(20px, calc((100vw - 720px) /2))
+    max(20px, env(safe-area-inset-bottom));
+}
+.clip-actions-sheet [data-slot='sheet-title'] {
+  padding-right: 30px;
+  overflow-wrap: anywhere;
+  font-size: 18px;
+}
+.clip-actions-sheet [data-slot='sheet-description'] {
+  color: #b1a3bd;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.clip-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0 8px;
+}
+.clip-action-grid button {
+  flex-direction: column;
+  min-height: 100px;
+  background: #30253c;
+  border: 1px solid #483457;
+  border-radius: 16px;
+  padding: 14px 8px;
+  color: #dcc3ff;
+}
+.clip-action-grid strong {
+  font-size: 16px;
+  color: #f3ebfc;
+}
+.clip-action-grid span {
+  font-size: 12px;
+  color: #b7a7c5;
+}
+.clip-action-grid .destructive-action {
+  background: #39242d;
+  color: #ff9aa7;
+  border-color: #5f3544;
+}
+.clip-action-note {
+  color: #d7c897;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.touch-move-hint {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 12px;
+  background: #3a2a16;
+  color: #f5d98e;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.touch-move-hint button {
+  margin-left: auto;
+  min-width: 40px;
+  min-height: 40px;
+}
+@media (pointer: coarse), (max-width: 850px) {
+  .timeline-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+  .workspace-pane .timeline-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    min-height: 54px;
+  }
+  .workspace-pane .timeline-toolbar > button {
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+  .timeline-toolbar .track-add {
+    flex-shrink: 0;
+  }
+  .timeline-toolbar .spacer {
+    min-width: 5px;
+  }
+  .timeline-toolbar .range {
+    min-width: 75px;
+  }
+  .track-row {
+    height: 84px;
+  }
+  .track-header {
+    padding-top: 7px;
+  }
+  .track-controls {
+    gap: 2px;
+  }
+  .track-controls button {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 8px;
+  }
+  .timeline-clip {
+    top: 9px;
+    height: 64px;
+  }
+  .timeline-clip .trim-handle {
+    display: none;
+  }
+  .timeline-clip.selected .trim-handle {
+    display: block;
+    width: 18px;
+    touch-action: none;
+  }
+  .timeline-clip.selected .trim-handle:after {
+    left: 8px;
+    top: 23px;
+    height: 18px;
+  }
+  .timeline-clip.selected .clip-title {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+  .ruler,
+  .ruler-row {
+    height: 44px;
+  }
+  .ruler-label {
+    padding-top: 14px;
+  }
+  .ruler > span {
+    top: 13px;
+  }
+  .playhead-head {
+    top: 32px;
+  }
+  .pane-titlebar {
+    height: 44px;
+  }
+  .pane-titlebar button {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+  .workspace-menu [role^='menuitem'] {
+    min-height: 46px;
+  }
+  .workspace-inspector-button {
+    min-height: 54px;
+  }
+  .clip-actions-sheet .full {
+    min-height: 48px;
+  }
+}
+@media (max-width: 440px) {
+  .clip-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+}

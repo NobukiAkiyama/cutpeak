@@ -1,10 +1,15 @@
 /* eslint-disable jsx-a11y/prefer-tag-over-role -- Clip widgets contain independent trim handles; keyboard editing is provided by the inspector and shortcuts. */
 import {
+  useEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
+  Ellipsis,
+  Move,
+  SlidersHorizontal,
+  X,
   Scissors,
   Trash2,
   Copy,
@@ -39,6 +44,14 @@ import {
 } from '../core/model';
 import { snapFrame } from '../core/timeline';
 import { Choice, Range } from './controls';
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
+import { usePanelLayout } from './workspace-state';
+import { watchPress } from './touch-press';
 const icons = {
   video: Film,
   audio: Music2,
@@ -51,6 +64,51 @@ export default function Timeline() {
   const { project, frame, selected, zoom, snapping } = useEditor();
   const scroll = useRef<HTMLDivElement>(null);
   const [trackType, setTrackType] = useState<ClipKind>('video');
+  const [actions, setActions] = useState<{ id: string; frame: number } | null>(
+    null,
+  );
+  const [touchMove, setTouchMove] = useState<string | null>(null);
+  const pressCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => pressCleanup.current?.(), []);
+  const actionInfo = actions ? findClip(project, actions.id) : undefined;
+  const canSplit =
+    !!actionInfo &&
+    !actionInfo.track.locked &&
+    actions!.frame > actionInfo.clip.startFrame &&
+    actions!.frame <
+      actionInfo.clip.startFrame + actionInfo.clip.durationFrames;
+  function openActions(c: Clip, at: number) {
+    pressCleanup.current?.();
+    setTouchMove(null);
+    api.select(c.id);
+    const target = Math.max(
+      c.startFrame,
+      Math.min(c.startFrame + c.durationFrames - 1, Math.round(at)),
+    );
+    api.seek(target);
+    setActions({ id: c.id, frame: target });
+  }
+  function pressClip(e: ReactPointerEvent, c: Clip, t: Track) {
+    if (e.button !== 0 || !e.isPrimary) return;
+    if (e.pointerType === 'mouse' || touchMove === c.id) {
+      drag(e, c, t, 'move');
+      return;
+    }
+    e.stopPropagation();
+    pressCleanup.current?.();
+    const at =
+      c.startFrame +
+      (e.clientX - e.currentTarget.getBoundingClientRect().left) / zoom;
+    pressCleanup.current = watchPress(
+      window,
+      e.nativeEvent,
+      () => {
+        api.select(c.id);
+        api.seek(at);
+      },
+      () => openActions(c, at),
+    );
+  }
   const total = endFrame(project),
     timelineFrames = Math.max(
       Math.ceil(fps(project) * 30),
@@ -61,6 +119,7 @@ export default function Timeline() {
   const locked = selectedInfo?.track.locked;
   const rulerStep = Math.max(1, Math.ceil(75 / (zoom * fps(project))));
   function scrub(e: ReactPointerEvent) {
+    if (e.button !== 0 || !e.isPrimary) return;
     e.preventDefault();
     const node = e.currentTarget as HTMLElement;
     node.setPointerCapture(e.pointerId);
@@ -85,7 +144,9 @@ export default function Timeline() {
     track: Track,
     kind: 'move' | 'left' | 'right',
   ) {
+    if (e.button !== 0 || !e.isPrimary) return;
     e.stopPropagation();
+    pressCleanup.current?.();
     api.select(c.id);
     if (track.locked) return;
     e.preventDefault();
@@ -195,18 +256,41 @@ export default function Timeline() {
     const up = () => {
       clean();
       api.end();
+      setTouchMove(null);
     };
     const cancel = () => {
       clean();
       api.cancel();
+      setTouchMove(null);
     };
     node.addEventListener('pointermove', move);
     node.addEventListener('pointerup', up, { once: true });
     node.addEventListener('pointercancel', cancel, { once: true });
   }
   return (
-    <section className="timeline">
+    <section className={`timeline ${touchMove ? 'touch-move-mode' : ''}`}>
+      {touchMove && (
+        <div className="touch-move-hint">
+          <Move size={17} />
+          <span>選択したクリップをドラッグして移動</span>
+          <button
+            aria-label="移動モードを終了"
+            onClick={() => setTouchMove(null)}
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
       <div className="timeline-toolbar">
+        <button
+          title="クリップの操作メニュー"
+          aria-label="クリップの操作メニュー"
+          disabled={!selectedInfo}
+          onClick={() => selectedInfo && openActions(selectedInfo.clip, frame)}
+        >
+          <Ellipsis size={21} />
+          <span>操作</span>
+        </button>
         <button
           title="再生位置で分割（S）"
           disabled={
@@ -418,7 +502,10 @@ export default function Timeline() {
                   className="track-lane"
                   style={{ width }}
                   onPointerDown={(e) => {
-                    if (e.target === e.currentTarget) {
+                    if (
+                      e.target === e.currentTarget &&
+                      e.pointerType === 'mouse'
+                    ) {
                       api.select(null);
                       scrub(e);
                     }
@@ -471,9 +558,27 @@ export default function Timeline() {
                           left: c.startFrame * zoom,
                           width: Math.max(4, c.durationFrames * zoom),
                         }}
-                        onPointerDown={(e) => drag(e, c, t, 'move')}
+                        onPointerDown={(e) => pressClip(e, c, t)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          openActions(
+                            c,
+                            c.startFrame +
+                              (e.clientX -
+                                e.currentTarget.getBoundingClientRect().left) /
+                                zoom,
+                          );
+                        }}
+                        aria-haspopup="dialog"
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
+                          if (
+                            e.key === 'ContextMenu' ||
+                            (e.shiftKey && e.key === 'F10')
+                          ) {
+                            e.preventDefault();
+                            openActions(c, frame);
+                          } else if (e.key === 'Enter') {
                             api.select(c.id);
                             api.seek(c.startFrame);
                           }
@@ -579,6 +684,93 @@ export default function Timeline() {
           </div>
         </div>
       </div>
+      <Sheet
+        open={!!actions && !!actionInfo}
+        onOpenChange={(open) => {
+          if (!open) setActions(null);
+        }}
+      >
+        <SheetContent side="bottom" className="clip-actions-sheet">
+          <SheetTitle>{actionInfo?.clip.name || 'クリップの操作'}</SheetTitle>
+          <SheetDescription>
+            {actionInfo?.track.locked
+              ? 'このトラックはロックされています。編集するにはロックを解除してください。'
+              : `再生位置 ${actions?.frame ?? 0} フレームで操作します。削除は「元に戻す」で取り消せます。`}
+          </SheetDescription>
+          <div className="clip-action-grid">
+            <button
+              disabled={!canSplit}
+              onClick={() => {
+                if (actions && canSplit)
+                  api.execute({
+                    type: 'clip.split',
+                    clipId: actions.id,
+                    frame: actions.frame,
+                  });
+                setActions(null);
+              }}
+            >
+              <Scissors size={24} />
+              <strong>分割</strong>
+              <span>再生位置で分ける</span>
+            </button>
+            <button
+              className="destructive-action"
+              disabled={!actionInfo || actionInfo.track.locked}
+              onClick={() => {
+                if (actions)
+                  api.execute({ type: 'clip.delete', clipId: actions.id });
+                setActions(null);
+              }}
+            >
+              <Trash2 size={24} />
+              <strong>削除</strong>
+              <span>クリップを取り除く</span>
+            </button>
+            <button
+              disabled={!actionInfo || actionInfo.track.locked}
+              onClick={() => {
+                if (actions)
+                  api.execute({ type: 'clip.duplicate', clipId: actions.id });
+                setActions(null);
+              }}
+            >
+              <Copy size={24} />
+              <strong>複製</strong>
+              <span>コピーを追加</span>
+            </button>
+            <button
+              disabled={!actionInfo || actionInfo.track.locked}
+              onClick={() => {
+                setTouchMove(actions?.id || null);
+                setActions(null);
+              }}
+            >
+              <Move size={24} />
+              <strong>移動</strong>
+              <span>次のドラッグで移動</span>
+            </button>
+            <button
+              onClick={() => {
+                usePanelLayout.getState().show('inspector', true);
+                setActions(null);
+              }}
+            >
+              <SlidersHorizontal size={24} />
+              <strong>詳細を編集</strong>
+              <span>文字・位置・音量など</span>
+            </button>
+          </div>
+          {!canSplit && actionInfo && !actionInfo.track.locked && (
+            <p className="clip-action-note">
+              分割するには、クリップの先頭より内側を長押ししてください。
+            </p>
+          )}
+          <button className="secondary full" onClick={() => setActions(null)}>
+            閉じる
+          </button>
+        </SheetContent>
+      </Sheet>
     </section>
   );
 }
