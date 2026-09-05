@@ -42,6 +42,7 @@ import {
   type Track,
 } from '../core/model';
 import { snapFrame } from '../core/timeline';
+import type { Command } from '../core/commands';
 import { Range } from './controls';
 import { usePanelLayout } from './workspace-state';
 import { watchPress } from './touch-press';
@@ -56,6 +57,23 @@ const icons = {
 
 export function TimelineControls() {
   const { zoom, snapping } = useEditor();
+  const changeZoom = (next: number) => {
+    const previous = useEditor.getState().zoom;
+    const frame = useEditor.getState().frame;
+    const scroller = document.querySelector<HTMLDivElement>('.timeline-scroll');
+    if (scroller) {
+      const nextScroll = scroller.scrollLeft + frame * (next - previous);
+      useEditor.setState({ zoom: next });
+      requestAnimationFrame(() => {
+        scroller.scrollLeft = Math.max(
+          0,
+          Math.min(nextScroll, scroller.scrollWidth - scroller.clientWidth),
+        );
+      });
+      return;
+    }
+    useEditor.setState({ zoom: next });
+  };
   return (
     <div className="timeline-inline-controls">
       <button
@@ -71,9 +89,7 @@ export function TimelineControls() {
       <button
         title="タイムラインを縮小"
         aria-label="タイムラインを縮小"
-        onClick={() =>
-          useEditor.setState({ zoom: Math.max(0.15, zoom / 1.25) })
-        }
+        onClick={() => changeZoom(Math.max(0.15, zoom / 1.25))}
       >
         <Minus size={14} />
       </button>
@@ -83,12 +99,12 @@ export function TimelineControls() {
         min={0.15}
         max={10}
         step={0.05}
-        onChange={(z) => useEditor.setState({ zoom: z })}
+        onChange={changeZoom}
       />
       <button
         title="タイムラインを拡大"
         aria-label="タイムラインを拡大"
-        onClick={() => useEditor.setState({ zoom: Math.min(10, zoom * 1.25) })}
+        onClick={() => changeZoom(Math.min(10, zoom * 1.25))}
       >
         <Plus size={14} />
       </button>
@@ -253,14 +269,44 @@ export default function Timeline() {
         const target = project.tracks.find(
           (t) => t.id === row?.dataset.trackId && !t.locked,
         );
-        api.preview([
+        const destination = target || track;
+        const commands: Command[] = [
           {
-            type: 'clip.move',
+            type: 'clip.move' as const,
             clipId: c.id,
             startFrame: start,
-            trackId: target?.id || track.id,
+            trackId: destination.id,
           },
-        ]);
+        ];
+        const end = start + c.durationFrames;
+        const movingRight = start > c.startFrame;
+        if (destination.id === track.id || target) {
+          destination.clips.forEach((other) => {
+            if (other.id === c.id || other.startFrame >= end || other.startFrame + other.durationFrames <= start) return;
+            if (movingRight) {
+              const overlap = end - other.startFrame;
+              if (overlap < other.durationFrames)
+                commands.push({
+                  type: 'clip.trim' as const,
+                  clipId: other.id,
+                  startFrame: other.startFrame + overlap,
+                  durationFrames: other.durationFrames - overlap,
+                  sourceInUs: other.sourceInUs + frameToUs(overlap, project),
+                });
+            } else {
+              const newEnd = Math.min(other.startFrame + other.durationFrames, start);
+              if (newEnd > other.startFrame)
+                commands.push({
+                  type: 'clip.trim' as const,
+                  clipId: other.id,
+                  startFrame: other.startFrame,
+                  durationFrames: newEnd - other.startFrame,
+                  sourceInUs: other.sourceInUs,
+                });
+            }
+          });
+        }
+        api.preview(commands);
       } else if (kind === 'left') {
         let start = Math.min(
           c.startFrame + c.durationFrames - 1,
