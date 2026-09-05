@@ -333,34 +333,6 @@ button:hover {
   border-top: 1px solid #302d35;
   background: #151516;
 }
-.timeline-toolbar {
-  order: 2;
-  height: 50px;
-  padding: 0 20px;
-  border-top: 1px solid #2b282f;
-  border-bottom: 0;
-  gap: 10px;
-  background: #141415;
-}
-.timeline-toolbar > button {
-  font-size: 13px;
-  color: #bdb6c8;
-  min-height: 36px;
-}
-.timeline-toolbar > button.active {
-  background: #30243f;
-  color: #c7a6ff;
-}
-.timeline-toolbar .zoom-label {
-  font-size: 12px;
-  width: 42px;
-  color: #a19aa9;
-}
-.track-add .choice {
-  border-radius: 8px;
-  background: #242126 !important;
-  font-size: 12px;
-}
 .timeline-scroll {
   scrollbar-color: #4e4659 #151516;
 }
@@ -620,10 +592,6 @@ button:hover {
   .asset-image {
     height: 76px;
   }
-  .timeline-toolbar {
-    gap: 5px;
-    padding: 0 12px;
-  }
 }
 @media (max-width: 850px) {
   .compact-settings {
@@ -683,12 +651,6 @@ button:hover {
   .timeline {
     height: clamp(210px, 30dvh, 280px);
   }
-  .timeline-toolbar {
-    gap: 3px;
-  }
-  .timeline-toolbar > button span {
-    display: none;
-  }
   .transport-buttons {
     position: static;
     transform: none;
@@ -743,15 +705,12 @@ button:hover {
   .tool-rail button span {
     font-size: 12px;
   }
-  .timeline-toolbar .toolbar-divider {
-    margin: 0 3px;
-  }
-  .timeline-toolbar .range {
+  .timeline-inline-controls .range {
     min-width: 35px;
     width: 60px;
     flex-basis: 60px;
   }
-  .timeline-toolbar .zoom-label {
+  .timeline-inline-controls .zoom-label {
     display: none;
   }
 }
@@ -830,12 +789,6 @@ button:hover {
 }
 .workspace-pane .preview-panel > .panel-heading {
   height: 32px;
-}
-.workspace-pane .timeline-toolbar {
-  flex-wrap: wrap;
-  height: auto;
-  min-height: 48px;
-  padding: 4px 10px;
 }
 .workspace-pane .transport {
   flex-shrink: 0;
@@ -1041,24 +994,16 @@ button:hover {
   .timeline-scroll {
     -webkit-overflow-scrolling: touch;
   }
-  .workspace-pane .timeline-toolbar {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    min-height: 54px;
+  .timeline-inline-controls {
+    top: 3px;
+    right: 7px;
   }
-  .workspace-pane .timeline-toolbar > button {
-    min-width: 44px;
-    min-height: 44px;
-    flex-shrink: 0;
+  .timeline-inline-controls > button {
+    min-width: 36px;
+    min-height: 36px;
   }
-  .timeline-toolbar .track-add {
-    flex-shrink: 0;
-  }
-  .timeline-toolbar .spacer {
-    min-width: 5px;
-  }
-  .timeline-toolbar .range {
-    min-width: 75px;
+  .timeline-inline-controls .range {
+    min-width: 70px;
   }
   .track-row {
     height: 84px;

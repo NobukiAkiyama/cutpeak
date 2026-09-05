@@ -6,7 +6,6 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
-  Ellipsis,
   Move,
   SlidersHorizontal,
   X,
@@ -43,7 +42,13 @@ import {
   type ClipKind,
 } from '../core/model';
 import { snapFrame } from '../core/timeline';
-import { Choice, Range } from './controls';
+import { Range } from './controls';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { usePanelLayout } from './workspace-state';
 import { watchPress } from './touch-press';
 const icons = {
@@ -57,7 +62,6 @@ const icons = {
 export default function Timeline() {
   const { project, frame, selected, zoom, snapping } = useEditor();
   const scroll = useRef<HTMLDivElement>(null);
-  const [trackType, setTrackType] = useState<ClipKind>('video');
   const [actions, setActions] = useState<{
     id: string;
     frame: number;
@@ -133,8 +137,6 @@ export default function Timeline() {
       total + Math.ceil(fps(project) * 5),
     );
   const width = Math.max(800, timelineFrames * zoom);
-  const selectedInfo = selected ? findClip(project, selected) : undefined;
-  const locked = selectedInfo?.track.locked;
   const rulerStep = Math.max(1, Math.ceil(75 / (zoom * fps(project))));
   function scrub(e: ReactPointerEvent) {
     if (e.button !== 0 || !e.isPrimary) return;
@@ -299,62 +301,7 @@ export default function Timeline() {
           </button>
         </div>
       )}
-      <div className="timeline-toolbar">
-        <button
-          title="クリップの操作メニュー"
-          aria-label="クリップの操作メニュー"
-          disabled={!selectedInfo}
-          onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            if (selectedInfo)
-              openActions(selectedInfo.clip, frame, {
-                x: rect.left,
-                y: rect.bottom + 6,
-              });
-          }}
-        >
-          <Ellipsis size={21} />
-          <span>操作</span>
-        </button>
-        <button
-          title="再生位置で分割（S）"
-          disabled={
-            !selected ||
-            locked ||
-            frame <= selectedInfo!.clip.startFrame ||
-            frame >=
-              selectedInfo!.clip.startFrame + selectedInfo!.clip.durationFrames
-          }
-          onClick={() =>
-            selected &&
-            api.execute({ type: 'clip.split', clipId: selected, frame })
-          }
-        >
-          <Scissors size={17} />
-          <span>分割</span>
-        </button>
-        <button
-          title="削除（Delete）"
-          disabled={!selected || locked}
-          onClick={() =>
-            selected && api.execute({ type: 'clip.delete', clipId: selected })
-          }
-        >
-          <Trash2 size={16} />
-          <span>削除</span>
-        </button>
-        <button
-          title="複製（⌘ D）"
-          disabled={!selected || locked}
-          onClick={() =>
-            selected &&
-            api.execute({ type: 'clip.duplicate', clipId: selected })
-          }
-        >
-          <Copy size={16} />
-          <span>複製</span>
-        </button>
-        <div className="toolbar-divider" />
+      <div className="timeline-inline-controls">
         <button
           title="スナップ（Alt で一時解除）"
           className={snapping ? 'active' : ''}
@@ -364,30 +311,7 @@ export default function Timeline() {
           <Magnet size={17} />
           <span>スナップ</span>
         </button>
-        <div className="track-add">
-          <Choice
-            label="追加するトラック"
-            value={trackType}
-            options={[
-              { value: 'video', label: '映像' },
-              { value: 'audio', label: '音声' },
-              { value: 'image', label: '画像' },
-              { value: 'text', label: 'テキスト' },
-              { value: 'caption', label: '字幕' },
-              { value: 'shape', label: '図形' },
-            ]}
-            onChange={(t) => setTrackType(t as ClipKind)}
-          />
-          <button
-            title="トラックを追加"
-            onClick={() =>
-              api.execute({ type: 'track.add', track: makeTrack(trackType) })
-            }
-          >
-            <Plus size={15} />
-          </button>
-        </div>
-        <div className="spacer" />
+        <div className="timeline-control-divider" />
         <button
           title="タイムラインを縮小"
           onClick={() =>
@@ -417,7 +341,49 @@ export default function Timeline() {
       <div className="timeline-scroll" ref={scroll}>
         <div className="timeline-content" style={{ width: width + 136 }}>
           <div className="ruler-row">
-            <div className="ruler-label">トラック</div>
+            <div className="ruler-label">
+              <span>トラック</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className="timeline-add-track"
+                  title="トラックを追加"
+                  aria-label="トラックを追加"
+                >
+                  <Plus size={15} />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="timeline-add-menu"
+                  side="bottom"
+                  align="start"
+                >
+                  {(Object.keys(icons) as ClipKind[]).map((kind) => {
+                    const Icon = icons[kind];
+                    const labels: Record<ClipKind, string> = {
+                      video: '映像トラック',
+                      audio: '音声トラック',
+                      image: '画像トラック',
+                      text: 'テキストトラック',
+                      caption: '字幕トラック',
+                      shape: '図形トラック',
+                    };
+                    return (
+                      <DropdownMenuItem
+                        key={kind}
+                        onClick={() =>
+                          api.execute({
+                            type: 'track.add',
+                            track: makeTrack(kind),
+                          })
+                        }
+                      >
+                        <Icon size={15} />
+                        {labels[kind]}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <div className="ruler" style={{ width }} onPointerDown={scrub}>
               {Array.from(
                 {
