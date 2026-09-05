@@ -6,7 +6,6 @@ import {
   Upload,
   FolderOpen,
   LoaderCircle,
-  ExternalLink,
 } from 'lucide-react';
 import { Modal, Field, Choice } from './controls';
 import {
@@ -30,33 +29,27 @@ export default function DriveDialog({
   onClose: () => void;
 }) {
   const { project } = useEditor();
-  const [config, setConfig] = useState<DriveConfig>({
-      clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
-      apiKey: import.meta.env.VITE_GOOGLE_API_KEY || '',
-      appId: import.meta.env.VITE_GOOGLE_APP_ID || '',
-    }),
-    [isConnected, setConnected] = useState(connected()),
+  const config: DriveConfig = {
+    clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+    apiKey: import.meta.env.VITE_GOOGLE_API_KEY || '',
+    appId: import.meta.env.VITE_GOOGLE_APP_ID || '',
+  };
+  const available = !!(config.clientId && config.apiKey && config.appId);
+  const [isConnected, setConnected] = useState(connected()),
     [mode, setMode] = useState<SyncRecord['mode']>('portable'),
     [status, setStatus] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
-    [configured, setConfigured] = useState(false),
     [record, setRecord] = useState<SyncRecord | undefined>(undefined);
   useEffect(() => {
     if (!open) return;
     setConnected(connected());
-    void readMeta<DriveConfig>('drive-config').then((v) => {
-      if (v) {
-        setConfig(v);
-        setConfigured(!!v.clientId);
-      }
-    });
     void readMeta<SyncRecord>(`drive-sync:${project.id}`).then((r) => {
       setRecord(r);
       if (r) setMode(r.mode);
     });
-    if (navigator.onLine) void prepareGoogle().catch(() => {});
-  }, [open, project.id]);
+    if (available && navigator.onLine) void prepareGoogle().catch(() => {});
+  }, [open, project.id, available]);
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError('');
@@ -88,87 +81,35 @@ export default function DriveDialog({
         <Cloud size={28} />
         <div>
           <strong>
-            {isConnected ? 'Google Drive に接続済み' : 'Google Drive に接続'}
+            {isConnected ? 'Google Drive に接続済み' : 'Google Drive と連携'}
           </strong>
           <small>
             {isConnected
               ? '編集内容は引き続き端末内にも保存されます。'
-              : '接続しなくても、編集・書き出しができます。'}
+              : 'Google アカウントを選ぶだけで接続できます。'}
           </small>
         </div>
       </div>
-      {(!configured || !config.clientId) && (
-        <div className="drive-setup">
-          <p>初回は Google Cloud の設定が必要です。</p>
-          <Field label="OAuth Client ID">
-            <input
-              aria-label="OAuth Client ID"
-              value={config.clientId}
-              placeholder="…apps.googleusercontent.com"
-              onChange={(e) =>
-                setConfig({ ...config, clientId: e.target.value.trim() })
-              }
-            />
-          </Field>
-          <Field label="API Key">
-            <input
-              aria-label="Google API Key"
-              value={config.apiKey}
-              onChange={(e) =>
-                setConfig({ ...config, apiKey: e.target.value.trim() })
-              }
-            />
-          </Field>
-          <Field label="App ID（プロジェクト番号）">
-            <input
-              aria-label="Google App ID"
-              value={config.appId}
-              onChange={(e) =>
-                setConfig({ ...config, appId: e.target.value.trim() })
-              }
-            />
-          </Field>
-          <p className="panel-help">
-            Drive API と Google Picker API を有効にし、JavaScript の生成元に{' '}
-            <code>{location.origin}</code> を追加してください。API Key
-            はこの生成元と使用APIに制限してください。
-          </p>
-          <a
-            className="inline-link"
-            href="https://console.cloud.google.com/apis/credentials"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Google Cloud の認証情報を開く <ExternalLink size={13} />
-          </a>
-          <button
-            className="secondary full"
-            disabled={!config.clientId || !config.apiKey || !config.appId}
-            onClick={() => {
-              void writeMeta('drive-config', config);
-              setConfigured(true);
-            }}
-          >
-            設定を保存
-          </button>
-        </div>
+      {!available && (
+        <p className="error-inline" role="alert">
+          このアプリでは Google Drive
+          連携がまだ有効になっていません。管理者にお問い合わせください。
+        </p>
       )}
       {!isConnected ? (
         <button
           className="primary full"
-          disabled={busy || !config.clientId || !config.apiKey || !config.appId}
+          disabled={busy || !available}
           onClick={() =>
             void run(async () => {
-              await writeMeta('drive-config', config);
               await connect(config);
-              setConfigured(true);
               setConnected(true);
               await syncProject(undefined, setStatus);
             })
           }
         >
           <Link2 size={16} />
-          {busy ? '接続中…' : 'Google アカウントで接続'}
+          {busy ? '接続中…' : 'Google Drive と連携'}
         </button>
       ) : (
         <>
@@ -263,15 +204,9 @@ export default function DriveDialog({
           {error}
         </p>
       )}
-      <button
-        className="subtle-link"
-        disabled={busy}
-        onClick={() => setConfigured(false)}
-      >
-        接続設定を編集
-      </button>
       <p className="panel-help">
-        アクセストークンは保存しません。接続が切れても、端末内の編集と自動保存は続きます。
+        Framecut
+        が作成したファイルと、あなたが選んだプロジェクトだけにアクセスします。接続しなくても編集と書き出しはできます。
       </p>
     </Modal>
   );

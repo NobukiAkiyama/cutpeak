@@ -61,7 +61,7 @@ npm start        # 本番ビルドのローカル確認（既定4173）
 
 ## Google Drive
 
-[設定手順](docs/GOOGLE_DRIVE.md) を参照してください。画面の Drive 設定から入力できるため、再ビルドは必須ではありません。`.env.example` にある Vite 変数を使ってビルド時に設定する方法もあります。
+[運営者向けの設定手順](docs/GOOGLE_DRIVE.md) を参照してください。Google Cloud の設定値は `.env.example` にある Vite 変数を使ってビルド時に登録します。設定後、利用者は画面の「Google Drive と連携」からGoogleアカウントを選ぶだけで接続できます。
 
 アクセストークンはメモリーだけに保持します。`drive.file` スコープを使用し、Google Identity Services、Google Picker、Drive REST API とブラウザから直接通信します。
 

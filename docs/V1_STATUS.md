@@ -33,7 +33,7 @@
 ## 未検証と制約
 
 - **動画の実エンコード／デコード、WebGL表示、映像と音声の同期、各ブラウザの動作**は、実ブラウザでのE2E検証が必要です。MP4/MOVのコンテナ対応と、端末が持つコーデックの対応は別です。
-- **Google Driveの実認証・通信は未検証**です。OAuth Client ID・API Key・App IDは利用者のGoogle Cloud設定が必要です。モックテストは実Google APIでの成功の代替にはなりません。
+- **Google Driveの実認証・通信は未検証**です。OAuth Client ID・API Key・App IDはアプリ運営者によるGoogle Cloud設定とビルド時の登録が必要です。利用者による設定値の入力は不要です。モックテストは実Google APIでの成功の代替にはなりません。
 - 実端末でのSafari/iPad/Android/Firefoxのタッチ操作、メモリー制限、コーデック差は未検証です。
 - PWAのキャッシュ生成は実装済みですが、Service Workerを使う実ブラウザでのオフライン受け入れ試験は未実施です。開発サーバーではService Workerを登録せず、`npm run build` 後の配信で有効にします。
 - OPFS非対応の互換モードはセッション素材の再読み込み後の復元を保証しません。OffscreenCanvas非対応ではメインスレッドでのメディア処理・描画・書き出しに退避し、性能が低下する可能性があります。

@@ -10,10 +10,17 @@
    - `http://127.0.0.1:4173`（本番ビルドのプレビュー）
    - `https://framecut-video-editor.mimi11211.chatgpt.site`（このプロジェクトの確認用ホスト）
 6. API Key を作成し、使用する生成元の HTTP リファラーと Google Picker API / Drive API に制限します。
-7. OAuth Client ID、API Key、Google Cloud のプロジェクト**番号**を、エディターの「Drive → 接続設定」に入力します。プロジェクト番号が App ID です。プロジェクト名や文字列のプロジェクトIDではありません。
-8. 「Google アカウントで接続」を押し、必要な範囲へのアクセスを許可します。
+7. OAuth Client ID、API Key、Google Cloud のプロジェクト**番号**を、`.env.local` または公開環境のビルド設定へ登録します。プロジェクト番号が App ID です。プロジェクト名や文字列のプロジェクトIDではありません。
 
-Client Secret は使いません。フロントエンドの設定値は公開されるため、秘密の認証情報を VITE_ 変数に入れないでください。API Key の制限は Google Cloud Console 側で設定します。
+   ```env
+   VITE_GOOGLE_CLIENT_ID=...
+   VITE_GOOGLE_API_KEY=...
+   VITE_GOOGLE_APP_ID=...
+   ```
+
+8. アプリを再ビルドします。以降、利用者は「Google Drive と連携」を押してアカウントを選ぶだけです。利用者にこれらの設定値を入力してもらう必要はありません。
+
+Client Secret は使いません。フロントエンドの設定値は公開されるため、秘密の認証情報を VITE_ 変数に入れないでください。API Key の制限は Google Cloud Console 側で設定します。設定値がないビルドでは、利用者向け画面に管理者への問い合わせ案内が表示されます。
 
 ## 保存と復元
 
