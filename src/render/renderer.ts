@@ -147,7 +147,7 @@ in vec2 pos;uniform mat3 matrix;uniform vec4 crop;out vec2 uv;void main(){vec3 p
       const fs = shader(
         g.FRAGMENT_SHADER,
         `#version 300 es
-precision mediump float;in vec2 uv;uniform sampler2D tex;uniform float opacity;out vec4 color;void main(){vec4 c=texture(tex,uv);color=vec4(c.rgb,c.a*opacity);}`,
+precision mediump float;in vec2 uv;uniform sampler2D tex;uniform float opacity;out vec4 color;void main(){vec4 c=texture(tex,uv);color=c*opacity;}`,
       );
       const pr = g.createProgram()!;
       g.attachShader(pr, vs);
@@ -177,7 +177,7 @@ precision mediump float;in vec2 uv;uniform sampler2D tex;uniform float opacity;o
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
       g.enable(g.BLEND);
-      g.blendFunc(g.SRC_ALPHA, g.ONE_MINUS_SRC_ALPHA);
+      g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA);
     } else {
       this.mode = 'canvas2d';
       this.ctx = canvas.getContext('2d', { alpha: false }) as Context2D | null;
@@ -295,7 +295,7 @@ precision mediump float;in vec2 uv;uniform sampler2D tex;uniform float opacity;o
         );
         g.uniform1f(g.getUniformLocation(this.program!, 'opacity'), opacity);
         g.bindTexture(g.TEXTURE_2D, this.texture!);
-        g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
         g.texImage2D(
           g.TEXTURE_2D,
           0,
