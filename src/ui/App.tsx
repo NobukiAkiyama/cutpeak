@@ -12,7 +12,6 @@ import {
   History,
   Scissors,
   ChevronDown,
-  SlidersHorizontal,
   CheckCircle2,
   LoaderCircle,
   AlertCircle,
@@ -276,14 +275,6 @@ export default function App() {
           onClick={() => setModal('settings')}
         >
           <Settings2 size={20} />
-        </button>
-        <button
-          title="選択クリップの設定"
-          className="workspace-inspector-button"
-          onClick={() => usePanelLayout.getState().show('inspector', true)}
-        >
-          <SlidersHorizontal size={21} />
-          <span>編集</span>
         </button>
       </Tabs>
 

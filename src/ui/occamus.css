@@ -903,11 +903,6 @@ button:hover {
 .workspace-empty span {
   font-size: 13px;
 }
-.tool-rail .workspace-inspector-button {
-  display: flex;
-  flex-direction: column;
-  color: #c2a0f9;
-}
 @media (max-width: 850px) {
   .resizable-workspace {
     min-height: 320px;
@@ -1095,9 +1090,6 @@ button:hover {
   }
   .workspace-menu [role^='menuitem'] {
     min-height: 46px;
-  }
-  .workspace-inspector-button {
-    min-height: 54px;
   }
   .clip-actions-sheet .full {
     min-height: 48px;
