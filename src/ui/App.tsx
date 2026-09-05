@@ -3,7 +3,6 @@ import {
   Film,
   Type,
   Music2,
-  Captions,
   Shapes,
   Cloud,
   Download,
@@ -136,7 +135,6 @@ export default function App() {
     { key: 'media', label: 'メディア', icon: Film },
     { key: 'audio', label: 'オーディオ', icon: Music2 },
     { key: 'text', label: 'テキスト', icon: Type },
-    { key: 'captions', label: '字幕', icon: Captions },
     { key: 'elements', label: '図形', icon: Shapes },
   ];
   return (
