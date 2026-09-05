@@ -5,7 +5,7 @@ export interface TokenResponse {
   error_description?: string;
 }
 export interface TokenClient {
-  requestAccessToken(options: { prompt: string }): void;
+  requestAccessToken(options?: { prompt?: string }): void;
 }
 interface PickerView {
   setMimeTypes(value: string): PickerView;

@@ -113,7 +113,7 @@ export async function connect(config: DriveConfig) {
           ),
         ),
     });
-    client.requestAccessToken({ prompt: '' });
+    client.requestAccessToken();
   });
 }
 async function request(url: string, init: RequestInit = {}) {
