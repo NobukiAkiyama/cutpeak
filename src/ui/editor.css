@@ -1396,6 +1396,22 @@ h3 {
   top: 20px;
   clip-path: polygon(0 0, 100% 0, 100% 65%, 50% 100%, 0 65%);
 }
+.playhead-handle {
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  width: 24px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: ew-resize;
+}
+.playhead-handle:focus-visible {
+  outline: 2px solid #f4d85e;
+}
 /* Shell, dialogs, feedback */
 .topbar .brand {
   background: none;

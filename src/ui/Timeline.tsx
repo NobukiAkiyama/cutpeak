@@ -190,6 +190,36 @@ export default function Timeline() {
     );
   const width = Math.max(800, timelineFrames * zoom);
   const rulerStep = Math.max(1, Math.ceil(75 / (zoom * fps(project))));
+  function dragPlayhead(e: ReactPointerEvent<HTMLButtonElement>) {
+    if (e.button !== 0 || !e.isPrimary) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const node = e.currentTarget;
+    const startX = e.clientX;
+    const startFrame = frame;
+    const startScroll = scroll.current?.scrollLeft || 0;
+    node.setPointerCapture(e.pointerId);
+    const move = (event: PointerEvent) => {
+      api.seek(
+        startFrame +
+          (event.clientX -
+            startX +
+            (scroll.current?.scrollLeft || 0) -
+            startScroll) /
+            zoom,
+      );
+    };
+    const end = () => {
+      node.removeEventListener('pointermove', move);
+      node.removeEventListener('pointerup', end);
+      node.removeEventListener('pointercancel', end);
+      node.removeEventListener('lostpointercapture', end);
+    };
+    node.addEventListener('pointermove', move);
+    node.addEventListener('pointerup', end);
+    node.addEventListener('pointercancel', end);
+    node.addEventListener('lostpointercapture', end);
+  }
   function drag(
     e: ReactPointerEvent,
     c: Clip,
@@ -475,7 +505,7 @@ export default function Timeline() {
                       e.pointerType === 'mouse'
                     ) {
                       // Clicking an empty lane should only clear the selection.
-                      // Moving the playhead is reserved for the ruler so a
+                      // Moving the playhead is reserved for its handle so a
                       // normal left click does not unexpectedly change time.
                       api.select(null);
                     }
@@ -647,6 +677,18 @@ export default function Timeline() {
             }}
           >
             <div className="playhead-head" />
+            <button
+              className="playhead-handle"
+              aria-label="再生バーを移動"
+              title="ドラッグで再生位置を移動（← →で1フレーム）"
+              onPointerDown={dragPlayhead}
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                e.preventDefault();
+                e.stopPropagation();
+                api.seek(frame + (e.key === 'ArrowRight' ? 1 : -1));
+              }}
+            />
           </div>
         </div>
       </div>
