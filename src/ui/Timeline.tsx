@@ -138,8 +138,8 @@ export default function Timeline() {
   const canSplit =
     !!actionInfo &&
     !actionInfo.track.locked &&
-    actions!.frame > actionInfo.clip.startFrame &&
-    actions!.frame <
+    frame > actionInfo.clip.startFrame &&
+    frame <
       actionInfo.clip.startFrame + actionInfo.clip.durationFrames;
   function openActions(
     c: Clip,
@@ -756,7 +756,7 @@ export default function Timeline() {
           >
             <div className="clip-context-heading">
               <strong>{actionInfo.clip.name}</strong>
-              <span>{actions.frame} フレーム</span>
+              <span>再生バー: {frame} フレーム</span>
             </div>
             {actionInfo.track.locked && (
               <p className="clip-context-warning">トラックはロック中です</p>
@@ -769,7 +769,7 @@ export default function Timeline() {
                   api.execute({
                     type: 'clip.split',
                     clipId: actions.id,
-                    frame: actions.frame,
+                    frame,
                   });
                 setActions(null);
               }}
