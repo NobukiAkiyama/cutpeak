@@ -137,13 +137,9 @@ export default function Preview() {
           );
           const off = canvas.transferControlToOffscreen();
           const mode = await r.rpc.call<string>('init', { canvas: off }, [off]);
-          if (active && mode !== 'webgl2') {
-            setFallback(1);
-            return;
-          }
           if (active) setMode(`Worker ${mode}`);
         } else {
-          r.main = new SceneRenderer(canvas, fallback >= 2);
+          r.main = new SceneRenderer(canvas, true);
           setMode(r.main.mode);
         }
         if (active) {

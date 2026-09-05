@@ -4,7 +4,7 @@ self.onmessage = ({ data }) => {
   const { id, type, args } = data;
   try {
     if (type === 'init') {
-      renderer = new SceneRenderer(args.canvas);
+      renderer = new SceneRenderer(args.canvas, true);
       self.postMessage({ id, value: renderer.mode });
     } else if (type === 'draw') {
       try {
