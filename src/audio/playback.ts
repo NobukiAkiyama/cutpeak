@@ -12,6 +12,7 @@ export class Playback {
   private scheduled = 0;
   private filling = false;
   private useAudio = false;
+  private audioFailed = false;
   playing = false;
   starting = false;
   get active() {
@@ -28,28 +29,21 @@ export class Playback {
     this.starting = true;
     const generation = ++this.generation;
     this.startFrame = frame;
+    this.audioFailed = false;
     this.useAudio = audible(p) && typeof AudioContext !== 'undefined';
     if (this.useAudio) {
-      this.context ??= new AudioContext({ sampleRate: 48000 });
-      await this.context.resume();
-      if (!this.output) {
-        try {
-          await this.context.audioWorklet.addModule('/audio-worklet.js');
-          this.output = new AudioWorkletNode(this.context, 'framecut-output');
-          this.output.connect(this.context.destination);
-        } catch {
-          this.output = this.context.destination;
-        }
+      try {
+        this.context ??= new AudioContext({ sampleRate: 48000 });
+        await this.context.resume();
+        this.output ??= this.context.destination;
+      } catch {
+        this.useAudio = false;
+        this.audioFailed = true;
+        this.onError(
+          new Error('音声を開始できないため、映像のみ再生しています。'),
+        );
       }
     }
-    if (generation !== this.generation) return;
-    const first = this.useAudio
-      ? await this.media.mix(
-          p,
-          frame / fps(p),
-          Math.min(0.5, (endFrame(p) - frame) / fps(p)),
-        )
-      : null;
     if (generation !== this.generation) return;
     this.startTime = this.useAudio
       ? this.context!.currentTime + 0.08
@@ -57,7 +51,7 @@ export class Playback {
     this.scheduled = 0;
     this.playing = true;
     this.starting = false;
-    if (first) this.schedule(first, 0);
+    void this.fill(p, generation);
     this.timer = setInterval(() => void this.fill(p, generation), 80);
     const step = () => {
       if (!this.playing || generation !== this.generation) return;
@@ -98,23 +92,24 @@ export class Playback {
     this.scheduled = offset + buffer.duration;
   }
   private async fill(p: Project, generation: number) {
-    if (!this.useAudio || this.filling || !this.playing) return;
+    if (!this.useAudio || this.audioFailed || this.filling || !this.playing)
+      return;
     const elapsed = this.context!.currentTime - this.startTime;
     if (this.scheduled - elapsed > 0.8) return;
-    const remaining = (endFrame(p) - this.startFrame) / fps(p) - this.scheduled;
+    const offset = Math.max(this.scheduled, Math.max(0, elapsed));
+    const remaining = (endFrame(p) - this.startFrame) / fps(p) - offset;
     if (remaining <= 0) return;
     this.filling = true;
     try {
-      const offset = this.scheduled,
-        channels = await this.media.mix(
-          p,
-          this.startFrame / fps(p) + offset,
-          Math.min(0.5, remaining),
-        );
+      const channels = await this.media.mix(
+        p,
+        this.startFrame / fps(p) + offset,
+        Math.min(0.5, remaining),
+      );
       if (generation === this.generation && this.playing)
         this.schedule(channels, offset);
     } catch (e) {
-      this.pause();
+      this.audioFailed = true;
       this.onError(e as Error);
     } finally {
       this.filling = false;
