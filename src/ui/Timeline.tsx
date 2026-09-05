@@ -191,7 +191,7 @@ export default function Timeline() {
   const width = Math.max(800, timelineFrames * zoom);
   const rulerStep = Math.max(1, Math.ceil(75 / (zoom * fps(project))));
   function dragPlayhead(e: ReactPointerEvent<HTMLButtonElement>) {
-    if ((e.button !== 0 && e.button !== 2) || !e.isPrimary) return;
+    if (e.button !== 0 || !e.isPrimary) return;
     e.preventDefault();
     e.stopPropagation();
     const node = e.currentTarget;
@@ -220,8 +220,8 @@ export default function Timeline() {
     node.addEventListener('pointercancel', end);
     node.addEventListener('lostpointercapture', end);
   }
-  function rightScrub(e: ReactPointerEvent<HTMLDivElement>) {
-    if (e.button !== 2 || !e.isPrimary) return;
+  function scrub(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.button !== 0 || !e.isPrimary) return;
     e.preventDefault();
     e.stopPropagation();
     const node = e.currentTarget;
@@ -415,7 +415,7 @@ export default function Timeline() {
             <div
               className="ruler"
               style={{ width }}
-              onPointerDown={rightScrub}
+              onPointerDown={scrub}
               onContextMenu={(e) => e.preventDefault()}
             >
               {Array.from(
@@ -528,18 +528,16 @@ export default function Timeline() {
                   onPointerDown={(e) => {
                     if (
                       !(e.target as HTMLElement).closest('.timeline-clip') &&
-                      e.button === 2
+                      e.button === 0
                     ) {
-                      rightScrub(e);
+                      scrub(e);
                       return;
                     }
                     if (
                       e.target === e.currentTarget &&
                       e.pointerType === 'mouse'
                     ) {
-                      // Clicking an empty lane should only clear the selection.
-                      // Moving the playhead uses right click or its handle so a
-                      // normal left click does not unexpectedly change time.
+                      // Right-clicking an empty lane clears selection only.
                       api.select(null);
                     }
                   }}
