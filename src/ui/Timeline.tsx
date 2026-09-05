@@ -533,13 +533,6 @@ export default function Timeline() {
                       scrub(e);
                       return;
                     }
-                    if (
-                      e.target === e.currentTarget &&
-                      e.pointerType === 'mouse'
-                    ) {
-                      // Right-clicking an empty lane clears selection only.
-                      api.select(null);
-                    }
                   }}
                   onContextMenu={(e) => e.preventDefault()}
                   onDragOver={(e) => e.preventDefault()}
