@@ -10,6 +10,7 @@ export interface TokenClient {
 interface PickerView {
   setMimeTypes(value: string): PickerView;
   setIncludeFolders(value: boolean): PickerView;
+  setSelectFolderEnabled(value: boolean): PickerView;
 }
 interface PickerResult {
   action: string;
@@ -39,7 +40,7 @@ export interface GoogleSdk {
   };
   picker: {
     DocsView: new (id: string) => PickerView;
-    ViewId: { DOCS: string };
+    ViewId: { DOCS: string; FOLDERS: string };
     PickerBuilder: new () => PickerBuilder;
     Action: { PICKED: string; CANCEL: string };
   };

@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import {
   connect,
+  normalizeDriveSaveName,
   pushDrive,
   upload,
   type DriveConfig,
@@ -117,6 +118,77 @@ async function syncRecord(p: string, remote: Repository) {
   } satisfies SyncRecord);
 }
 describe('Drive data preservation', () => {
+  it('requires and normalizes a name before creating a Drive directory', async () => {
+    const { e } = fixture();
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(
+      pushDrive(
+        { project: e.project, repository: e.repository },
+        'local',
+        () => {},
+      ),
+    ).rejects.toThrow('保存名');
+    expect(fetch).not.toHaveBeenCalled();
+    expect(normalizeDriveSaveName('  旅行/動画.cutpeak  ')).toBe('旅行 動画');
+  });
+  it('stores a new project as one named directory under Cutpeak', async () => {
+    const { e } = fixture();
+    let session = 0;
+    const created: Array<Record<string, unknown>> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+        const s = url instanceof Request ? url.url : url.toString();
+        if (s.includes('/files?q=')) return response({ files: [] });
+        if (s.includes('uploadType=resumable'))
+          return response({}, 200, {
+            Location: `https://www.googleapis.com/new-session/${++session}`,
+          });
+        if (s.includes('/new-session/'))
+          return response({ id: `uploaded-${session}`, name: 'uploaded' });
+        if (s.endsWith('/drive/v3/files?fields=id,name')) {
+          if (typeof init?.body !== 'string')
+            throw Error('Folder metadata must be JSON');
+          const body = JSON.parse(init.body) as Record<string, unknown>;
+          created.push(body);
+          return response({
+            id:
+              created.length === 1
+                ? 'cutpeak-root'
+                : `folder-${created.length}`,
+            name: body.name,
+            mimeType: body.mimeType,
+          });
+        }
+        throw Error(`Unexpected test request: ${init?.method || 'GET'} ${s}`);
+      }),
+    );
+    const result = await pushDrive(
+      { project: e.project, repository: e.repository },
+      'local',
+      () => {},
+      '旅行動画',
+    );
+    expect(created[0]).toMatchObject({
+      name: 'Cutpeak',
+      parents: ['root'],
+      appProperties: { framecutType: 'root' },
+    });
+    expect(created[1]).toMatchObject({
+      name: '旅行動画.cutpeak',
+      parents: ['cutpeak-root'],
+      appProperties: {
+        framecutType: 'project',
+        framecutProjectId: e.project.id,
+      },
+    });
+    expect(result.record).toMatchObject({
+      folderId: 'folder-2',
+      saveName: '旅行動画',
+      pending: false,
+    });
+  });
   it('publishes an existing manifest only with an ETag precondition', async () => {
     const { p, e, remote } = fixture();
     await syncRecord(p.id, remote);

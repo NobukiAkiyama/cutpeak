@@ -10,6 +10,7 @@ let syncing = false;
 export async function syncProject(
   mode?: SyncRecord['mode'],
   onProgress?: (m: string) => void,
+  saveName?: string,
 ) {
   if (syncing) return;
   const state = useEditor.getState();
@@ -24,6 +25,7 @@ export async function syncProject(
       { project: current.project, repository: current.repository },
       mode || record!.mode,
       onProgress || (() => {}),
+      saveName,
     );
     if (result.conflict) {
       let cachedAssetIds: SyncRecord['assetIds'] = {};

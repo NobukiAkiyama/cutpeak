@@ -21,6 +21,7 @@ export interface DriveConfig {
 export interface SyncRecord {
   fileId?: string;
   folderId?: string;
+  saveName?: string;
   lastSyncedHead: string | null;
   pending: boolean;
   mode: 'local' | 'portable' | 'cached';
@@ -36,6 +37,7 @@ interface DriveManifest {
   repositoryFileId: string;
   assetIds: Record<string, string>;
   folderId: string;
+  saveName?: string;
 }
 export class DrivePreconditionError extends Error {}
 interface DriveFile {
@@ -43,6 +45,7 @@ interface DriveFile {
   name: string;
   mimeType: string;
   parents?: string[];
+  appProperties?: Record<string, string>;
 }
 let accessToken = '',
   expires = 0;
@@ -143,7 +146,11 @@ async function json<T>(path: string, init?: RequestInit) {
     await request(`https://www.googleapis.com/drive/v3/${path}`, init)
   ).json() as Promise<T>;
 }
-async function folder(name: string, parent?: string) {
+async function folder(
+  name: string,
+  parent?: string,
+  appProperties?: Record<string, string>,
+) {
   return json<DriveFile>('files?fields=id,name', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -151,8 +158,57 @@ async function folder(name: string, parent?: string) {
       name,
       mimeType: 'application/vnd.google-apps.folder',
       ...(parent ? { parents: [parent] } : {}),
+      ...(appProperties ? { appProperties } : {}),
     }),
   });
+}
+const folderMime = 'application/vnd.google-apps.folder';
+const escapeQuery = (value: string) =>
+  value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+export function normalizeDriveSaveName(value: string) {
+  return Array.from(value)
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 || code === 127 ? ' ' : character;
+    })
+    .join('')
+    .trim()
+    .replace(/[\\/]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\.cutpeak$/i, '')
+    .trim()
+    .slice(0, 100);
+}
+async function foldersNamed(name: string, parent: string) {
+  const q = [
+    `'${escapeQuery(parent)}' in parents`,
+    `name = '${escapeQuery(name)}'`,
+    `mimeType = '${folderMime}'`,
+    'trashed = false',
+  ].join(' and ');
+  return (
+    await json<{ files: DriveFile[] }>(
+      `files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,appProperties)&pageSize=10`,
+    )
+  ).files;
+}
+async function createProjectFolder(saveName: string, projectId: string) {
+  const normalized = normalizeDriveSaveName(saveName);
+  if (!normalized || normalized === '無題のプロジェクト')
+    throw Error('保存名を入力してから保存してください');
+  let appRoot = (await foldersNamed('Cutpeak', 'root'))[0];
+  appRoot ||= await folder('Cutpeak', 'root', { framecutType: 'root' });
+  const directoryName = `${normalized}.cutpeak`;
+  if ((await foldersNamed(directoryName, appRoot.id)).length)
+    throw Error(
+      `「${directoryName}」はすでにあります。別の保存名を入力してください。`,
+    );
+  const projectFolder = await folder(directoryName, appRoot.id, {
+    framecutType: 'project',
+    framecutProjectId: projectId,
+    framecutFormat: '1',
+  });
+  return { folderId: projectFolder.id, saveName: normalized };
 }
 // Upload sessions are retained by file key. Tokens stay in memory; sessions may be resumed after reconnect.
 export async function upload(
@@ -246,19 +302,20 @@ const blobJson = (v: unknown) =>
 export async function pickProject(config: DriveConfig): Promise<string | null> {
   if (!connected()) await connect(config);
   await new Promise<void>((resolve) => window.gapi!.load('picker', resolve));
-  return new Promise((resolve, reject) => {
+  const folderId = await new Promise<string | null>((resolve, reject) => {
     try {
-      const g = window.google!.picker;
-      const view = new g.DocsView(g.ViewId.DOCS)
-        .setMimeTypes('application/json')
-        .setIncludeFolders(true);
+      const g = window.google!.picker,
+        view = new g.DocsView(g.ViewId.FOLDERS)
+          .setMimeTypes(folderMime)
+          .setIncludeFolders(true)
+          .setSelectFolderEnabled(true);
       const picker = new g.PickerBuilder()
         .setDeveloperKey(config.apiKey)
         .setAppId(config.appId)
         .setOAuthToken(accessToken)
         .setOrigin(location.origin)
         .addView(view)
-        .setTitle('Framecut の project.json を選択')
+        .setTitle('Cutpeak のプロジェクトフォルダを選択')
         .setCallback((data) => {
           if (data.action === g.Action.PICKED) resolve(data.docs[0].id);
           else if (data.action === g.Action.CANCEL) resolve(null);
@@ -269,6 +326,14 @@ export async function pickProject(config: DriveConfig): Promise<string | null> {
       reject(e);
     }
   });
+  if (!folderId) return null;
+  const q = `'${escapeQuery(folderId)}' in parents and name = 'project.json' and trashed = false`;
+  const files = await json<{ files: DriveFile[] }>(
+    `files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType)&pageSize=10`,
+  );
+  if (!files.files[0])
+    throw Error('Cutpeak のプロジェクトフォルダを選択してください');
+  return files.files[0].id;
 }
 export async function fetchRemote(fileId: string) {
   const response = await request(
@@ -329,6 +394,7 @@ export async function pullDrive(
   await writeMeta(`drive-sync:${p.id}`, {
     fileId,
     folderId: manifest.folderId,
+    saveName: manifest.saveName || normalizeDriveSaveName(p.name),
     lastSyncedHead: manifest.head,
     lastSyncedSignature: repositorySignature(repository),
     pending: false,
@@ -341,6 +407,7 @@ export async function pushDrive(
   state: SavedProject,
   mode: SyncRecord['mode'],
   progress: (m: string) => void,
+  saveName?: string,
 ): Promise<{ conflict?: Repository; record: SyncRecord }> {
   const { project: p, repository: r } = state;
   let record = (await readMeta<SyncRecord>(`drive-sync:${p.id}`)) || {
@@ -349,6 +416,13 @@ export async function pushDrive(
     mode,
     assetIds: {},
   };
+  if (!record.folderId) {
+    const normalized = normalizeDriveSaveName(saveName || '');
+    if (!normalized || normalized === '無題のプロジェクト')
+      throw Error('保存名を入力してから保存してください');
+  } else if (!record.saveName) {
+    record.saveName = normalizeDriveSaveName(p.name) || '既存プロジェクト';
+  }
   record = { ...record, pending: true, mode };
   await writeMeta(`drive-sync:${p.id}`, record);
   let expectedHead: string | null = null;
@@ -378,7 +452,9 @@ export async function pushDrive(
   }
   progress('Drive の保存先を準備中…');
   if (!record.folderId) {
-    record.folderId = (await folder(p.name)).id;
+    const created = await createProjectFolder(saveName || '', p.id);
+    record.folderId = created.folderId;
+    record.saveName = created.saveName;
     await writeMeta(`drive-sync:${p.id}`, record);
   }
   const root = record.folderId;
@@ -448,6 +524,7 @@ export async function pushDrive(
     repositoryFileId: pack.id,
     assetIds: record.assetIds,
     folderId: root,
+    saveName: record.saveName,
   };
   let result: DriveFile;
   if (record.fileId) {

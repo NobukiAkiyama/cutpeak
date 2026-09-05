@@ -12,6 +12,7 @@ import {
   connected,
   connect,
   disconnect,
+  normalizeDriveSaveName,
   prepareGoogle,
   pickProject,
   pullDrive,
@@ -40,16 +41,24 @@ export default function DriveDialog({
     [status, setStatus] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
+    [saveName, setSaveName] = useState(''),
     [record, setRecord] = useState<SyncRecord | undefined>(undefined);
+  const normalizedSaveName = normalizeDriveSaveName(saveName),
+    validSaveName =
+      !!normalizedSaveName && normalizedSaveName !== '無題のプロジェクト';
   useEffect(() => {
     if (!open) return;
     setConnected(connected());
     void readMeta<SyncRecord>(`drive-sync:${project.id}`).then((r) => {
       setRecord(r);
       if (r) setMode(r.mode);
+      setSaveName(
+        r?.saveName ||
+          (project.name === '無題のプロジェクト' ? '' : project.name),
+      );
     });
     if (available && navigator.onLine) void prepareGoogle().catch(() => {});
-  }, [open, project.id, available]);
+  }, [open, project.id, project.name, available]);
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError('');
@@ -113,6 +122,21 @@ export default function DriveDialog({
         </button>
       ) : (
         <>
+          {!record?.folderId ? (
+            <Field label="保存名">
+              <input
+                value={saveName}
+                maxLength={100}
+                placeholder="例：旅行動画"
+                onChange={(e) => setSaveName(e.target.value)}
+              />
+              <small>Google Drive/Cutpeak/保存名.cutpeak にまとめます</small>
+            </Field>
+          ) : (
+            <p className="capability-note">
+              保存先: <strong>{record.saveName || project.name}.cutpeak</strong>
+            </p>
+          )}
           <Field label="保存する内容">
             <Choice
               label="Drive の素材保存モード"
@@ -132,8 +156,10 @@ export default function DriveDialog({
           )}
           <button
             className="primary full"
-            disabled={busy}
-            onClick={() => void run(() => syncProject(mode, setStatus))}
+            disabled={busy || (!record?.folderId && !validSaveName)}
+            onClick={() =>
+              void run(() => syncProject(mode, setStatus, saveName))
+            }
           >
             <Upload size={16} />
             Drive に保存
@@ -158,7 +184,7 @@ export default function DriveDialog({
           </button>
           <button
             className="secondary full"
-            disabled={busy}
+            disabled={busy || !record?.folderId}
             onClick={() =>
               void run(async () => {
                 const previous = await readMeta<SyncRecord>(
@@ -168,17 +194,21 @@ export default function DriveDialog({
                   `drive-sync-backup:${project.id}:${Date.now()}`,
                   previous,
                 );
-                await writeMeta(`drive-sync:${project.id}`, {
+                const next: SyncRecord = {
                   lastSyncedHead: null,
-                  pending: true,
+                  pending: false,
                   mode,
                   assetIds: {},
-                });
-                await syncProject(mode, setStatus);
+                };
+                await writeMeta(`drive-sync:${project.id}`, next);
+                setRecord(next);
+                setSaveName(
+                  project.name === '無題のプロジェクト' ? '' : project.name,
+                );
               })
             }
           >
-            別の保存先へ保存
+            別名で保存
           </button>
           <button
             className="text-button full"
