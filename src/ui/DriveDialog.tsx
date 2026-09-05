@@ -235,7 +235,7 @@ export default function DriveDialog({
         </p>
       )}
       <p className="panel-help">
-        Framecut
+        Cutpeak
         が作成したファイルと、あなたが選んだプロジェクトだけにアクセスします。接続しなくても編集と書き出しはできます。
       </p>
     </Modal>

@@ -148,7 +148,7 @@ export default function App() {
           <span className="brand-mark">
             <Scissors size={20} />
           </span>
-          framecut
+          Cutpeak
         </button>
         <button
           className="project-title"
@@ -277,7 +277,7 @@ export default function App() {
       </Tabs>
 
       <footer className="statusbar">
-        <span>FRAMECUT</span>
+        <span>CUTPEAK</span>
         <span className="storage-indicator">
           <HardDrive size={11} />
           {storageMode === 'opfs' ? '端末に自動保存' : '互換保存モード'}

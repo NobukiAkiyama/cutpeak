@@ -1,6 +1,6 @@
-# Framecut
+# Cutpeak
 
-ブラウザだけで動画・画像・音声・字幕を編集する、React / TypeScript / Vite 製のエディターです。
+ブラウザだけで動画・画像・音声・字幕を編集する、Cutpeak（React / TypeScript / Vite 製）のエディターです。
 元の素材を書き換えず、編集操作をコマンドと履歴に記録します。自前バックエンド、FFmpeg、WASM、クラウドレンダリングは使用しません。
 
 ## 起動
