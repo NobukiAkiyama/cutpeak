@@ -135,9 +135,7 @@ export default function Library() {
               onClick={() => input.current?.click()}
             >
               <Upload size={32} />
-              <p>
-                {search ? '素材が見つかりません' : 'ここから、つくりはじめる'}
-              </p>
+              <p>{search ? '素材が見つかりません' : 'まだ素材がありません'}</p>
               <span>動画・画像・音声を追加</span>
               <small>MP4 / MOV / WebM / PNG / MP3</small>
             </button>
@@ -220,7 +218,7 @@ export default function Library() {
       {panel === 'text' && (
         <>
           <p className="panel-help">
-            テキストを追加して、右側で文字やスタイルを編集できます。
+            テキストを追加して、編集パネルで文字やスタイルを調整します。
           </p>
           <button className="text-template" onClick={() => api.addClip('text')}>
             <Type size={24} />

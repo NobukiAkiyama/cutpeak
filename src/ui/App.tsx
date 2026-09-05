@@ -160,7 +160,7 @@ export default function App() {
           <span className="brand-mark">
             <Scissors size={20} />
           </span>
-          framecut<span className="version">V1</span>
+          framecut
         </button>
         <button
           className="project-title"
@@ -224,6 +224,13 @@ export default function App() {
           <span>Drive</span>
         </button>
         <button
+          className="compact-settings"
+          title="設定とブラウザ診断"
+          onClick={() => setModal('settings')}
+        >
+          <Settings2 size={18} />
+        </button>
+        <button
           className="primary"
           disabled={!ready || !endFrame(project) || !!busy}
           onClick={() => setModal('export')}
@@ -246,53 +253,56 @@ export default function App() {
         </div>
       )}
       <div className="workspace" aria-busy={!ready}>
-        <Tabs
-          className="tool-rail"
-          orientation="vertical"
-          value={panel}
-          onValueChange={(v) =>
-            useEditor.setState({ panel: v as typeof panel, mobilePanel: true })
-          }
-        >
-          <TabsList aria-label="素材ツール">
-            {tools.map(({ key, label, icon: Icon }) => (
-              <TabsTrigger
-                key={key}
-                value={key}
-                className={panel === key ? 'active' : ''}
-                onClick={() => useEditor.setState({ mobilePanel: true })}
-              >
-                <Icon size={21} />
-                <span>{label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          <div className="spacer" />
-          <button
-            title="設定とブラウザ診断"
-            className="rail-settings"
-            onClick={() => setModal('settings')}
-          >
-            <Settings2 size={20} />
-          </button>
-          <button
-            title="選択クリップの設定"
-            className="mobile-inspector-button"
-            onClick={() => useEditor.setState({ inspectorOpen: true })}
-          >
-            <SlidersHorizontal size={21} />
-            <span>編集</span>
-          </button>
-        </Tabs>
         <Library />
         <Preview />
-        <aside className="inspector">
+        <aside
+          className={`inspector ${!state.selected ? 'inspector-idle' : ''}`}
+        >
           <Inspector />
         </aside>
       </div>
       <Timeline />
+      <Tabs
+        className="tool-rail"
+        orientation="horizontal"
+        value={panel}
+        onValueChange={(v) =>
+          useEditor.setState({ panel: v as typeof panel, mobilePanel: true })
+        }
+      >
+        <TabsList aria-label="素材ツール">
+          {tools.map(({ key, label, icon: Icon }) => (
+            <TabsTrigger
+              key={key}
+              value={key}
+              className={panel === key ? 'active' : ''}
+              onClick={() => useEditor.setState({ mobilePanel: true })}
+            >
+              <Icon size={21} />
+              <span>{label}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <div className="spacer" />
+        <button
+          title="設定とブラウザ診断"
+          className="rail-settings"
+          onClick={() => setModal('settings')}
+        >
+          <Settings2 size={20} />
+        </button>
+        <button
+          title="選択クリップの設定"
+          className="mobile-inspector-button"
+          onClick={() => useEditor.setState({ inspectorOpen: true })}
+        >
+          <SlidersHorizontal size={21} />
+          <span>編集</span>
+        </button>
+      </Tabs>
+
       <footer className="statusbar">
-        <span>LOCAL FIRST</span>
+        <span>FRAMECUT</span>
         <span className="storage-indicator">
           <HardDrive size={11} />
           {storageMode === 'opfs' ? '端末に自動保存' : '互換保存モード'}

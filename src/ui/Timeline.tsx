@@ -232,6 +232,7 @@ export default function Timeline() {
           }
         >
           <Trash2 size={16} />
+          <span>削除</span>
         </button>
         <button
           title="複製（⌘ D）"
@@ -242,6 +243,7 @@ export default function Timeline() {
           }
         >
           <Copy size={16} />
+          <span>複製</span>
         </button>
         <div className="toolbar-divider" />
         <button
@@ -251,6 +253,7 @@ export default function Timeline() {
           onClick={() => useEditor.setState({ snapping: !snapping })}
         >
           <Magnet size={17} />
+          <span>スナップ</span>
         </button>
         <div className="track-add">
           <Choice

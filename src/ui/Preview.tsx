@@ -414,9 +414,9 @@ export default function Preview() {
           {!total && (
             <div className="stage-placeholder">
               <Film size={42} />
-              <p>あなたのストーリーを、この場所から。</p>
+              <p>動画を追加して編集を始める</p>
               <button
-                className="text-button"
+                className="primary"
                 onClick={() => input.current?.click()}
               >
                 <Upload size={16} />
