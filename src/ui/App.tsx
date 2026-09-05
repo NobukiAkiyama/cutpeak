@@ -23,21 +23,13 @@ import {
   HardDrive,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Sheet,
-  SheetContent,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
 import { useEditor, bootstrap, api, persistNow, notify } from '../app/store';
 import { endFrame, fps } from '../core/model';
 import { storageMode, requestPersistence } from '../storage/local';
 import { startSyncLoop } from '../sync/controller';
 import { registerWebTools } from '../app/webmcp';
-import Library from './Library';
-import Preview from './Preview';
-import Timeline from './Timeline';
-import Inspector from './Inspector';
+import Workspace, { WorkspaceMenu } from './Workspace';
+import { usePanelLayout } from './workspace-state';
 import ProjectDialog from './ProjectDialog';
 import HistoryDialog from './HistoryDialog';
 import ExportDialog from './ExportDialog';
@@ -54,7 +46,6 @@ export default function App() {
     saveStatus,
     capabilities,
     panel,
-    inspectorOpen,
   } = state;
   const [modal, setModal] = useState<
       | null
@@ -195,6 +186,7 @@ export default function App() {
           <span>履歴</span>
         </button>
         <div className="spacer" />
+        <WorkspaceMenu />
         <button
           className={`save-status ${saveStatus === 'error' ? 'error' : ''}`}
           onClick={() => void persistNow()}
@@ -252,16 +244,7 @@ export default function App() {
           </button>
         </div>
       )}
-      <div className="workspace" aria-busy={!ready}>
-        <Library />
-        <Preview />
-        <aside
-          className={`inspector ${!state.selected ? 'inspector-idle' : ''}`}
-        >
-          <Inspector />
-        </aside>
-      </div>
-      <Timeline />
+      <Workspace tablet={tablet} />
       <Tabs
         className="tool-rail"
         orientation="horizontal"
@@ -276,7 +259,10 @@ export default function App() {
               key={key}
               value={key}
               className={panel === key ? 'active' : ''}
-              onClick={() => useEditor.setState({ mobilePanel: true })}
+              onClick={() => {
+                usePanelLayout.getState().show('library', true);
+                useEditor.setState({ mobilePanel: true });
+              }}
             >
               <Icon size={21} />
               <span>{label}</span>
@@ -293,8 +279,8 @@ export default function App() {
         </button>
         <button
           title="選択クリップの設定"
-          className="mobile-inspector-button"
-          onClick={() => useEditor.setState({ inspectorOpen: true })}
+          className="workspace-inspector-button"
+          onClick={() => usePanelLayout.getState().show('inspector', true)}
         >
           <SlidersHorizontal size={21} />
           <span>編集</span>
@@ -347,18 +333,6 @@ export default function App() {
           <strong>{busy || '編集環境を準備しています…'}</strong>
         </div>
       )}
-      <Sheet
-        open={tablet && inspectorOpen}
-        onOpenChange={(v) => useEditor.setState({ inspectorOpen: v })}
-      >
-        <SheetContent side="bottom" className="inspector-sheet">
-          <SheetTitle className="sr-only">クリップの編集</SheetTitle>
-          <SheetDescription className="sr-only">
-            選択したクリップの位置、スタイル、音量を調整
-          </SheetDescription>
-          <Inspector />
-        </SheetContent>
-      </Sheet>
       <ProjectDialog
         open={modal === 'project'}
         onClose={() => setModal(null)}

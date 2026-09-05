@@ -73,6 +73,7 @@ export default function Preview() {
     });
     return () => {
       pb.dispose();
+      useEditor.setState({ playing: false });
       setStopPlayback(() => {});
     };
   }, [ready, project.id]);
