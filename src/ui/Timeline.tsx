@@ -201,14 +201,20 @@ export default function Timeline() {
       const rect = node.getBoundingClientRect();
       api.seek((x - rect.left) / zoom);
     };
-    update(e.clientX);
+    const startX = e.clientX;
+    let dragging = false;
     const move = (ev: PointerEvent) => update(ev.clientX);
+    const dragMove = (ev: PointerEvent) => {
+      if (!dragging && Math.abs(ev.clientX - startX) < 4) return;
+      dragging = true;
+      move(ev);
+    };
     const end = () => {
-      node.removeEventListener('pointermove', move);
+      node.removeEventListener('pointermove', dragMove);
       node.removeEventListener('pointerup', end);
       node.removeEventListener('pointercancel', end);
     };
-    node.addEventListener('pointermove', move);
+    node.addEventListener('pointermove', dragMove);
     node.addEventListener('pointerup', end, { once: true });
     node.addEventListener('pointercancel', end, { once: true });
   }
