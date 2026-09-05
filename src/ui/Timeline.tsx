@@ -191,7 +191,7 @@ export default function Timeline() {
   const width = Math.max(800, timelineFrames * zoom);
   const rulerStep = Math.max(1, Math.ceil(75 / (zoom * fps(project))));
   function dragPlayhead(e: ReactPointerEvent<HTMLButtonElement>) {
-    if (e.button !== 0 || !e.isPrimary) return;
+    if ((e.button !== 0 && e.button !== 2) || !e.isPrimary) return;
     e.preventDefault();
     e.stopPropagation();
     const node = e.currentTarget;
@@ -209,6 +209,27 @@ export default function Timeline() {
             zoom,
       );
     };
+    const end = () => {
+      node.removeEventListener('pointermove', move);
+      node.removeEventListener('pointerup', end);
+      node.removeEventListener('pointercancel', end);
+      node.removeEventListener('lostpointercapture', end);
+    };
+    node.addEventListener('pointermove', move);
+    node.addEventListener('pointerup', end);
+    node.addEventListener('pointercancel', end);
+    node.addEventListener('lostpointercapture', end);
+  }
+  function rightScrub(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.button !== 2 || !e.isPrimary) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const node = e.currentTarget;
+    node.setPointerCapture(e.pointerId);
+    const update = (clientX: number) =>
+      api.seek((clientX - node.getBoundingClientRect().left) / zoom);
+    update(e.clientX);
+    const move = (event: PointerEvent) => update(event.clientX);
     const end = () => {
       node.removeEventListener('pointermove', move);
       node.removeEventListener('pointerup', end);
@@ -391,7 +412,12 @@ export default function Timeline() {
                 <Plus size={15} />
               </button>
             </div>
-            <div className="ruler" style={{ width }}>
+            <div
+              className="ruler"
+              style={{ width }}
+              onPointerDown={rightScrub}
+              onContextMenu={(e) => e.preventDefault()}
+            >
               {Array.from(
                 {
                   length:
@@ -501,15 +527,23 @@ export default function Timeline() {
                   style={{ width }}
                   onPointerDown={(e) => {
                     if (
+                      !(e.target as HTMLElement).closest('.timeline-clip') &&
+                      e.button === 2
+                    ) {
+                      rightScrub(e);
+                      return;
+                    }
+                    if (
                       e.target === e.currentTarget &&
                       e.pointerType === 'mouse'
                     ) {
                       // Clicking an empty lane should only clear the selection.
-                      // Moving the playhead is reserved for its handle so a
+                      // Moving the playhead uses right click or its handle so a
                       // normal left click does not unexpectedly change time.
                       api.select(null);
                     }
                   }}
+                  onContextMenu={(e) => e.preventDefault()}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault();
@@ -682,6 +716,7 @@ export default function Timeline() {
               aria-label="再生バーを移動"
               title="ドラッグで再生位置を移動（← →で1フレーム）"
               onPointerDown={dragPlayhead}
+              onContextMenu={(e) => e.preventDefault()}
               onKeyDown={(e) => {
                 if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
                 e.preventDefault();
