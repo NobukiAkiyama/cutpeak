@@ -44,12 +44,6 @@ import {
 } from '../core/model';
 import { snapFrame } from '../core/timeline';
 import { Choice, Range } from './controls';
-import {
-  Sheet,
-  SheetContent,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
 import { usePanelLayout } from './workspace-state';
 import { watchPress } from './touch-press';
 const icons = {
@@ -64,12 +58,24 @@ export default function Timeline() {
   const { project, frame, selected, zoom, snapping } = useEditor();
   const scroll = useRef<HTMLDivElement>(null);
   const [trackType, setTrackType] = useState<ClipKind>('video');
-  const [actions, setActions] = useState<{ id: string; frame: number } | null>(
-    null,
-  );
+  const [actions, setActions] = useState<{
+    id: string;
+    frame: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const [touchMove, setTouchMove] = useState<string | null>(null);
   const pressCleanup = useRef<(() => void) | null>(null);
+  const actionMenu = useRef<HTMLDivElement>(null);
   useEffect(() => () => pressCleanup.current?.(), []);
+  useEffect(() => {
+    if (!actions) return;
+    requestAnimationFrame(() =>
+      actionMenu.current
+        ?.querySelector<HTMLButtonElement>('button:not(:disabled)')
+        ?.focus(),
+    );
+  }, [actions]);
   const actionInfo = actions ? findClip(project, actions.id) : undefined;
   const canSplit =
     !!actionInfo &&
@@ -77,7 +83,14 @@ export default function Timeline() {
     actions!.frame > actionInfo.clip.startFrame &&
     actions!.frame <
       actionInfo.clip.startFrame + actionInfo.clip.durationFrames;
-  function openActions(c: Clip, at: number) {
+  function openActions(
+    c: Clip,
+    at: number,
+    point: { x: number; y: number } = {
+      x: window.innerWidth / 2 - 136,
+      y: window.innerHeight / 2 - 150,
+    },
+  ) {
     pressCleanup.current?.();
     setTouchMove(null);
     api.select(c.id);
@@ -86,7 +99,12 @@ export default function Timeline() {
       Math.min(c.startFrame + c.durationFrames - 1, Math.round(at)),
     );
     api.seek(target);
-    setActions({ id: c.id, frame: target });
+    setActions({
+      id: c.id,
+      frame: target,
+      x: Math.max(12, Math.min(point.x, window.innerWidth - 292)),
+      y: Math.max(12, Math.min(point.y, window.innerHeight - 326)),
+    });
   }
   function pressClip(e: ReactPointerEvent, c: Clip, t: Track) {
     if (e.button !== 0 || !e.isPrimary) return;
@@ -106,7 +124,7 @@ export default function Timeline() {
         api.select(c.id);
         api.seek(at);
       },
-      () => openActions(c, at),
+      () => openActions(c, at, { x: e.clientX, y: e.clientY }),
     );
   }
   const total = endFrame(project),
@@ -286,7 +304,14 @@ export default function Timeline() {
           title="クリップの操作メニュー"
           aria-label="クリップの操作メニュー"
           disabled={!selectedInfo}
-          onClick={() => selectedInfo && openActions(selectedInfo.clip, frame)}
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            if (selectedInfo)
+              openActions(selectedInfo.clip, frame, {
+                x: rect.left,
+                y: rect.bottom + 6,
+              });
+          }}
         >
           <Ellipsis size={21} />
           <span>操作</span>
@@ -568,9 +593,10 @@ export default function Timeline() {
                               (e.clientX -
                                 e.currentTarget.getBoundingClientRect().left) /
                                 zoom,
+                            { x: e.clientX, y: e.clientY },
                           );
                         }}
-                        aria-haspopup="dialog"
+                        aria-haspopup="menu"
                         onKeyDown={(e) => {
                           if (
                             e.key === 'ContextMenu' ||
@@ -684,21 +710,51 @@ export default function Timeline() {
           </div>
         </div>
       </div>
-      <Sheet
-        open={!!actions && !!actionInfo}
-        onOpenChange={(open) => {
-          if (!open) setActions(null);
-        }}
-      >
-        <SheetContent side="bottom" className="clip-actions-sheet">
-          <SheetTitle>{actionInfo?.clip.name || 'クリップの操作'}</SheetTitle>
-          <SheetDescription>
-            {actionInfo?.track.locked
-              ? 'このトラックはロックされています。編集するにはロックを解除してください。'
-              : `再生位置 ${actions?.frame ?? 0} フレームで操作します。削除は「元に戻す」で取り消せます。`}
-          </SheetDescription>
-          <div className="clip-action-grid">
+      {actions && actionInfo && (
+        <div
+          className="clip-context-layer"
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) setActions(null);
+          }}
+        >
+          <div
+            ref={actionMenu}
+            className="clip-context-menu"
+            role="menu"
+            tabIndex={-1}
+            aria-label={`${actionInfo.clip.name}の操作`}
+            style={{ left: actions.x, top: actions.y }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setActions(null);
+                return;
+              }
+              if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+              e.preventDefault();
+              const items = Array.from(
+                e.currentTarget.querySelectorAll<HTMLButtonElement>(
+                  'button:not(:disabled)',
+                ),
+              );
+              const current = items.indexOf(
+                document.activeElement as HTMLButtonElement,
+              );
+              const direction = e.key === 'ArrowDown' ? 1 : -1;
+              items[
+                (current + direction + items.length) % items.length
+              ]?.focus();
+            }}
+          >
+            <div className="clip-context-heading">
+              <strong>{actionInfo.clip.name}</strong>
+              <span>{actions.frame} フレーム</span>
+            </div>
+            {actionInfo.track.locked && (
+              <p className="clip-context-warning">トラックはロック中です</p>
+            )}
             <button
+              role="menuitem"
               disabled={!canSplit}
               onClick={() => {
                 if (actions && canSplit)
@@ -710,11 +766,12 @@ export default function Timeline() {
                 setActions(null);
               }}
             >
-              <Scissors size={24} />
-              <strong>分割</strong>
-              <span>再生位置で分ける</span>
+              <Scissors size={17} />
+              <span>分割</span>
+              <kbd>S</kbd>
             </button>
             <button
+              role="menuitem"
               className="destructive-action"
               disabled={!actionInfo || actionInfo.track.locked}
               onClick={() => {
@@ -723,11 +780,12 @@ export default function Timeline() {
                 setActions(null);
               }}
             >
-              <Trash2 size={24} />
-              <strong>削除</strong>
-              <span>クリップを取り除く</span>
+              <Trash2 size={17} />
+              <span>削除</span>
+              <kbd>⌫</kbd>
             </button>
             <button
+              role="menuitem"
               disabled={!actionInfo || actionInfo.track.locked}
               onClick={() => {
                 if (actions)
@@ -735,42 +793,35 @@ export default function Timeline() {
                 setActions(null);
               }}
             >
-              <Copy size={24} />
-              <strong>複製</strong>
-              <span>コピーを追加</span>
+              <Copy size={17} />
+              <span>複製</span>
+              <kbd>⌘D</kbd>
             </button>
+            <div className="clip-context-separator" />
             <button
+              role="menuitem"
               disabled={!actionInfo || actionInfo.track.locked}
               onClick={() => {
                 setTouchMove(actions?.id || null);
                 setActions(null);
               }}
             >
-              <Move size={24} />
-              <strong>移動</strong>
-              <span>次のドラッグで移動</span>
+              <Move size={17} />
+              <span>移動モード</span>
             </button>
             <button
+              role="menuitem"
               onClick={() => {
                 usePanelLayout.getState().show('inspector', true);
                 setActions(null);
               }}
             >
-              <SlidersHorizontal size={24} />
-              <strong>詳細を編集</strong>
-              <span>文字・位置・音量など</span>
+              <SlidersHorizontal size={17} />
+              <span>詳細を編集</span>
             </button>
           </div>
-          {!canSplit && actionInfo && !actionInfo.track.locked && (
-            <p className="clip-action-note">
-              分割するには、クリップの先頭より内側を長押ししてください。
-            </p>
-          )}
-          <button className="secondary full" onClick={() => setActions(null)}>
-            閉じる
-          </button>
-        </SheetContent>
-      </Sheet>
+        </div>
+      )}
     </section>
   );
 }

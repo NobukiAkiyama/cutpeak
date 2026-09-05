@@ -942,57 +942,85 @@ button:hover {
 .timeline.touch-move-mode .timeline-clip {
   touch-action: none;
 }
-.clip-actions-sheet {
-  background: #1c1722 !important;
-  color: #f3ecfc;
-  border-radius: 24px 24px 0 0;
-  max-height: 85dvh;
-  overflow: auto;
-  padding: 24px max(20px, calc((100vw - 720px) /2))
-    max(20px, env(safe-area-inset-bottom));
+.clip-context-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
 }
-.clip-actions-sheet [data-slot='sheet-title'] {
-  padding-right: 30px;
-  overflow-wrap: anywhere;
-  font-size: 18px;
+.clip-context-menu {
+  position: fixed;
+  width: min(280px, calc(100vw - 24px));
+  padding: 6px;
+  background: rgba(27, 23, 33, 0.97);
+  color: #eee7f5;
+  border: 1px solid #4b4054;
+  border-radius: 10px;
+  box-shadow:
+    0 16px 48px #0009,
+    0 2px 8px #0007;
+  backdrop-filter: blur(16px);
 }
-.clip-actions-sheet [data-slot='sheet-description'] {
-  color: #b1a3bd;
-  font-size: 14px;
-  line-height: 1.7;
+.clip-context-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 10px 8px;
+  color: #b8aabd;
+  font-size: 11px;
 }
-.clip-action-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin: 20px 0 8px;
-}
-.clip-action-grid button {
-  flex-direction: column;
-  min-height: 100px;
-  background: #30253c;
-  border: 1px solid #483457;
-  border-radius: 16px;
-  padding: 14px 8px;
-  color: #dcc3ff;
-}
-.clip-action-grid strong {
-  font-size: 16px;
-  color: #f3ebfc;
-}
-.clip-action-grid span {
+.clip-context-heading strong {
+  flex: 1;
+  overflow: hidden;
+  color: #f5eff9;
   font-size: 12px;
-  color: #b7a7c5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.clip-action-grid .destructive-action {
-  background: #39242d;
+.clip-context-warning {
+  margin: 0 6px 5px;
+  padding: 6px 8px;
+  color: #e4c97f;
+  background: #382e1e;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.clip-context-menu > button {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 7px 10px;
+  color: #eee7f5;
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: left;
+}
+.clip-context-menu > button:hover,
+.clip-context-menu > button:focus-visible {
+  background: #3b3045;
+}
+.clip-context-menu > button:disabled {
+  color: #776c7d;
+}
+.clip-context-menu > button.destructive-action {
   color: #ff9aa7;
-  border-color: #5f3544;
 }
-.clip-action-note {
-  color: #d7c897;
-  font-size: 13px;
-  line-height: 1.6;
+.clip-context-menu > button.destructive-action:hover,
+.clip-context-menu > button.destructive-action:focus-visible {
+  background: #482934;
+}
+.clip-context-menu kbd {
+  margin-left: auto;
+  color: #96899e;
+  font: inherit;
+  font-size: 11px;
+}
+.clip-context-separator {
+  height: 1px;
+  margin: 5px 4px;
+  background: #44394c;
 }
 .touch-move-hint {
   display: flex;
@@ -1091,13 +1119,8 @@ button:hover {
   .workspace-menu [role^='menuitem'] {
     min-height: 46px;
   }
-  .clip-actions-sheet .full {
+  .clip-context-menu > button {
     min-height: 48px;
-  }
-}
-@media (max-width: 440px) {
-  .clip-action-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    font-size: 15px;
   }
 }
