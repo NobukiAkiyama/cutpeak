@@ -18,7 +18,7 @@ import { usePanelLayout, panelNames, type PanelId } from './workspace-state';
 import Library from './Library';
 import Preview from './Preview';
 import Inspector from './Inspector';
-import Timeline from './Timeline';
+import Timeline, { TimelineControls } from './Timeline';
 
 export function WorkspaceMenu() {
   const { visible, show, reset } = usePanelLayout();
@@ -52,7 +52,15 @@ export function WorkspaceMenu() {
     </DropdownMenu>
   );
 }
-function Pane({ id, children }: { id: PanelId; children: ReactNode }) {
+function Pane({
+  id,
+  children,
+  actions,
+}: {
+  id: PanelId;
+  children: ReactNode;
+  actions?: ReactNode;
+}) {
   const show = usePanelLayout((s) => s.show);
   return (
     <section
@@ -61,6 +69,7 @@ function Pane({ id, children }: { id: PanelId; children: ReactNode }) {
     >
       <div className="pane-titlebar">
         <span>{panelNames[id]}</span>
+        {actions && <div className="pane-titlebar-actions">{actions}</div>}
         <button
           title={`${panelNames[id]}を閉じる`}
           aria-label={`${panelNames[id]}を閉じる`}
@@ -149,7 +158,7 @@ export default function Workspace({ tablet }: { tablet: boolean }) {
           )}
           {visible.timeline && (
             <ResizablePanel id="timeline" defaultSize="32%" minSize="18%">
-              <Pane id="timeline">
+              <Pane id="timeline" actions={<TimelineControls />}>
                 <Timeline />
               </Pane>
             </ResizablePanel>

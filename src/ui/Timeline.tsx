@@ -59,6 +59,50 @@ const icons = {
   caption: Captions,
   shape: Shapes,
 };
+
+export function TimelineControls() {
+  const { zoom, snapping } = useEditor();
+  return (
+    <div className="timeline-inline-controls">
+      <button
+        title="スナップ（Alt で一時解除）"
+        className={snapping ? 'active' : ''}
+        aria-pressed={snapping}
+        onClick={() => useEditor.setState({ snapping: !snapping })}
+      >
+        <Magnet size={16} />
+        <span>スナップ</span>
+      </button>
+      <div className="timeline-control-divider" />
+      <button
+        title="タイムラインを縮小"
+        aria-label="タイムラインを縮小"
+        onClick={() =>
+          useEditor.setState({ zoom: Math.max(0.15, zoom / 1.25) })
+        }
+      >
+        <Minus size={14} />
+      </button>
+      <Range
+        label="タイムラインのズーム"
+        value={zoom}
+        min={0.15}
+        max={10}
+        step={0.05}
+        onChange={(z) => useEditor.setState({ zoom: z })}
+      />
+      <button
+        title="タイムラインを拡大"
+        aria-label="タイムラインを拡大"
+        onClick={() => useEditor.setState({ zoom: Math.min(10, zoom * 1.25) })}
+      >
+        <Plus size={14} />
+      </button>
+      <span className="zoom-label">{Math.round((zoom / 1.8) * 100)}%</span>
+    </div>
+  );
+}
+
 export default function Timeline() {
   const { project, frame, selected, zoom, snapping } = useEditor();
   const scroll = useRef<HTMLDivElement>(null);
@@ -301,43 +345,6 @@ export default function Timeline() {
           </button>
         </div>
       )}
-      <div className="timeline-inline-controls">
-        <button
-          title="スナップ（Alt で一時解除）"
-          className={snapping ? 'active' : ''}
-          aria-pressed={snapping}
-          onClick={() => useEditor.setState({ snapping: !snapping })}
-        >
-          <Magnet size={17} />
-          <span>スナップ</span>
-        </button>
-        <div className="timeline-control-divider" />
-        <button
-          title="タイムラインを縮小"
-          onClick={() =>
-            useEditor.setState({ zoom: Math.max(0.15, zoom / 1.25) })
-          }
-        >
-          <Minus size={15} />
-        </button>
-        <Range
-          label="タイムラインのズーム"
-          value={zoom}
-          min={0.15}
-          max={10}
-          step={0.05}
-          onChange={(z) => useEditor.setState({ zoom: z })}
-        />
-        <button
-          title="タイムラインを拡大"
-          onClick={() =>
-            useEditor.setState({ zoom: Math.min(10, zoom * 1.25) })
-          }
-        >
-          <Plus size={15} />
-        </button>
-        <span className="zoom-label">{Math.round((zoom / 1.8) * 100)}%</span>
-      </div>
       <div className="timeline-scroll" ref={scroll}>
         <div className="timeline-content" style={{ width: width + 136 }}>
           <div className="ruler-row">

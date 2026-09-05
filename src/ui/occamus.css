@@ -735,7 +735,7 @@ button:hover {
 .pane-titlebar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   flex-shrink: 0;
   height: 34px;
   padding: 0 10px 0 16px;
@@ -743,7 +743,14 @@ button:hover {
   color: #a89db6;
   font-size: 12px;
 }
-.pane-titlebar button {
+.pane-titlebar-actions {
+  height: 100%;
+  margin-left: auto;
+}
+.pane-titlebar-actions + button {
+  margin-left: 6px;
+}
+.pane-titlebar > button {
   min-height: 28px;
   height: 28px;
   width: 28px;
@@ -994,10 +1001,6 @@ button:hover {
   .timeline-scroll {
     -webkit-overflow-scrolling: touch;
   }
-  .timeline-inline-controls {
-    top: 3px;
-    right: 7px;
-  }
   .timeline-inline-controls > button {
     min-width: 36px;
     min-height: 36px;
@@ -1056,7 +1059,7 @@ button:hover {
   .pane-titlebar {
     height: 44px;
   }
-  .pane-titlebar button {
+  .pane-titlebar > button {
     width: 40px;
     height: 40px;
     min-height: 40px;
