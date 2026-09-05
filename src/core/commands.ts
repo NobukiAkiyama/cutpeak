@@ -190,14 +190,52 @@ export function applyCommand(
         Object.assign(c, clone(cmd.patch));
         break;
       case 'clip.move': {
+        const destination = cmd.trackId
+          ? p.tracks.find((track) => track.id === cmd.trackId)
+          : t;
+        if (!destination || destination.locked)
+          throw Error('このトラックへ移動できません');
+        const requested = Math.max(0, Math.round(cmd.startFrame));
+        const reference = destination === t ? c.startFrame : requested;
+        const others = destination.clips.filter((other) => other.id !== c.id);
+        const left = others.filter((other) => other.startFrame < reference);
+        const right = others.filter((other) => other.startFrame >= reference);
+        const minimum = Math.max(
+          0,
+          ...left.map((other) => other.startFrame + 1),
+        );
+        const maximum = Math.min(
+          Infinity,
+          ...right.map(
+            (other) =>
+              other.startFrame + other.durationFrames - 1 - c.durationFrames,
+          ),
+        );
+        // Preserve one frame of every neighbour; stop instead of overlapping it.
+        if (minimum > maximum)
+          throw Error('クリップを配置する空間がありません');
+        const start = Math.max(minimum, Math.min(requested, maximum));
+        const end = start + c.durationFrames;
+        for (const other of left) {
+          if (other.startFrame + other.durationFrames > start)
+            other.durationFrames = start - other.startFrame;
+        }
+        for (const other of right) {
+          if (other.startFrame >= end) continue;
+          const offset = end - other.startFrame;
+          trimKeys(other, offset, other.durationFrames - offset);
+          other.sourceInUs += frameToUs(offset, p);
+          other.startFrame = end;
+          other.durationFrames -= offset;
+        }
         if (cmd.trackId && cmd.trackId !== t.id) {
           const dest = p.tracks.find((t) => t.id === cmd.trackId);
           if (!dest || dest.locked) throw Error('このトラックへ移動できません');
           t.clips = t.clips.filter((x) => x.id !== c.id);
           dest.clips.push(c);
         }
-        description = `開始位置 ${c.startFrame} → ${Math.max(0, Math.round(cmd.startFrame))} フレーム`;
-        c.startFrame = Math.max(0, Math.round(cmd.startFrame));
+        description = `開始位置 ${c.startFrame} → ${start} フレーム`;
+        c.startFrame = start;
         break;
       }
       case 'clip.trim': {

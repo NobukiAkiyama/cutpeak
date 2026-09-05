@@ -1,5 +1,12 @@
 import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+const revision = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+const html = (await readFile('dist/index.html', 'utf8')).replace(
+  '</head>',
+  `<meta name="cutpeak-revision" content="${revision}"></head>`,
+);
+await writeFile('dist/index.html', html);
 const walk = async (dir, prefix = '') =>
   (
     await Promise.all(

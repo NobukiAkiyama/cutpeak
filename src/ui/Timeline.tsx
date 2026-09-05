@@ -156,7 +156,6 @@ export default function Timeline() {
       c.startFrame,
       Math.min(c.startFrame + c.durationFrames - 1, Math.round(at)),
     );
-    api.seek(target);
     setActions({
       id: c.id,
       frame: target,
@@ -180,7 +179,6 @@ export default function Timeline() {
       e.nativeEvent,
       () => {
         api.select(c.id);
-        api.seek(at);
       },
       () => openActions(c, at, { x: e.clientX, y: e.clientY }),
     );
@@ -208,7 +206,9 @@ export default function Timeline() {
     const node = e.currentTarget as HTMLElement;
     node.setPointerCapture(e.pointerId);
     const startX = e.clientX,
+      startY = e.clientY,
       startScroll = scroll.current?.scrollLeft || 0;
+    let dragging = false;
     const points = [
       0,
       frame,
@@ -220,6 +220,9 @@ export default function Timeline() {
     ];
     const asset = project.assets.find((a) => a.id === c.assetId);
     const move = (ev: PointerEvent) => {
+      if (!dragging && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4)
+        return;
+      dragging = true;
       const scroller = scroll.current;
       if (scroller) {
         const r = scroller.getBoundingClientRect();
@@ -258,34 +261,6 @@ export default function Timeline() {
             trackId: destination.id,
           },
         ];
-        const end = start + c.durationFrames;
-        const movingRight = start > c.startFrame;
-        if (destination.id === track.id || target) {
-          destination.clips.forEach((other) => {
-            if (other.id === c.id || other.startFrame >= end || other.startFrame + other.durationFrames <= start) return;
-            if (movingRight) {
-              const overlap = end - other.startFrame;
-              if (overlap < other.durationFrames)
-                commands.push({
-                  type: 'clip.trim' as const,
-                  clipId: other.id,
-                  startFrame: other.startFrame + overlap,
-                  durationFrames: other.durationFrames - overlap,
-                  sourceInUs: other.sourceInUs + frameToUs(overlap, project),
-                });
-            } else {
-              const newEnd = Math.min(other.startFrame + other.durationFrames, start);
-              if (newEnd > other.startFrame)
-                commands.push({
-                  type: 'clip.trim' as const,
-                  clipId: other.id,
-                  startFrame: other.startFrame,
-                  durationFrames: newEnd - other.startFrame,
-                  sourceInUs: other.sourceInUs,
-                });
-            }
-          });
-        }
         api.preview(commands);
       } else if (kind === 'left') {
         let start = Math.min(
