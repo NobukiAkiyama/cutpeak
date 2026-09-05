@@ -473,8 +473,10 @@ export default function Timeline() {
                       e.target === e.currentTarget &&
                       e.pointerType === 'mouse'
                     ) {
+                      // Clicking an empty lane should only clear the selection.
+                      // Moving the playhead is reserved for the ruler so a
+                      // normal left click does not unexpectedly change time.
                       api.select(null);
-                      scrub(e);
                     }
                   }}
                   onDragOver={(e) => e.preventDefault()}
