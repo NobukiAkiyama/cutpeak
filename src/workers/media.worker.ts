@@ -18,10 +18,25 @@ self.onmessage = async ({ data }) => {
         transfer = (value as { bitmap: ImageBitmap }[]).map((v) => v.bitmap);
         break;
       case 'mix':
-        value = await engine.mix(args.project, args.start, args.duration);
-        transfer = (value as Float32Array[]).map(
-          (c) => c.buffer as ArrayBuffer,
-        );
+        {
+          const channels = await engine.mix(
+            args.project,
+            args.start,
+            args.duration,
+          );
+          if (globalThis.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined') {
+            value = channels.map((channel) => {
+              const shared = new Float32Array(
+                new SharedArrayBuffer(channel.byteLength),
+              );
+              shared.set(channel);
+              return shared;
+            });
+          } else {
+            value = channels;
+            transfer = channels.map((channel) => channel.buffer as ArrayBuffer);
+          }
+        }
         break;
       case 'remove':
         engine.remove(args.assetId);

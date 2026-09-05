@@ -1,5 +1,7 @@
 export interface CapabilityProfile {
   secureContext: boolean;
+  crossOriginIsolated: boolean;
+  sharedArrayBuffer: boolean;
   webCodecs: {
     videoDecoder: boolean;
     videoEncoder: boolean;
@@ -192,6 +194,10 @@ export async function detectCapabilities(): Promise<CapabilityProfile> {
   ]);
   return {
     secureContext: isSecureContext,
+    crossOriginIsolated: globalThis.crossOriginIsolated === true,
+    sharedArrayBuffer:
+      globalThis.crossOriginIsolated === true &&
+      typeof SharedArrayBuffer !== 'undefined',
     webCodecs: {
       videoDecoder: vd,
       videoEncoder: ve,
