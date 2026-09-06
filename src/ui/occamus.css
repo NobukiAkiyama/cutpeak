@@ -1082,3 +1082,96 @@ button:hover {
     font-size: 15px;
   }
 }
+
+/* Project manager: one task per page, explicit file and browser storage. */
+.project-manager { min-width: 0; }
+.project-manager .project-nav {
+  display: flex;
+  width: 100%;
+  height: auto;
+  padding: 4px;
+  gap: 4px;
+  background: #141217;
+  border: 1px solid #352e3d;
+  border-radius: 12px;
+}
+.project-manager .project-nav [role='tab'] {
+  min-height: 44px;
+  height: auto;
+  padding: 10px 12px;
+  gap: 8px;
+  color: #aaa1b5;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.project-manager .project-nav [role='tab'][data-active] {
+  background: #38294b;
+  color: #f0e1ff;
+}
+.project-page { padding-top: 20px; min-width: 0; }
+.project-page-title { margin-bottom: 18px; }
+.project-manager h3 { margin: 0; font-size: 16px; font-weight: 650; }
+.project-page-title p { margin: 7px 0 0; color: #aaa1b5; font-size: 13px; line-height: 1.7; }
+.project-entry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.project-manager .project-entry {
+  display: flex;
+  align-items: center;
+  text-align: left;
+  gap: 12px;
+  padding: 18px 14px;
+  background: #27212f;
+  border: 1px solid #4c3b5e;
+  border-radius: 12px;
+  white-space: normal;
+}
+.project-entry > span:nth-child(2) { flex: 1; min-width: 0; }
+.project-entry-icon { display: grid; place-items: center; flex-shrink: 0; width: 42px; height: 46px; color: #c39afa; background: #362843; border-radius: 9px; }
+.project-entry strong { display: block; font-size: 13px; line-height: 1.6; }
+.project-entry small { display: block; margin-top: 5px; color: #aaa1b5; font-size: 11px; line-height: 1.6; }
+.project-entry > svg { flex-shrink: 0; color: #a487c4; }
+.project-manager .project-entry:hover { background: #33293e; border-color: #a67bef; }
+.project-list-title { display: flex; justify-content: space-between; align-items: center; margin: 26px 0 12px; }
+.project-list-title h3 { font-size: 13px; }
+.project-list-title > span { font-size: 12px; color: #9f94aa; }
+.project-manager .saved-projects { max-height: 236px; }
+.project-manager .project-open { gap: 12px; border: 1px solid #3a3242; }
+.project-manager .project-open:hover { background: #31283b; }
+.project-manager .is-current .project-open { border-color: #695083; }
+.project-manager .project-resume { flex: 0 0 auto; display: flex; align-items: center; gap: 7px; color: #cab1e8; font-size: 11px; }
+.project-manager .project-icon { flex-shrink: 0; width: 38px; height: 38px; }
+.project-empty { color: #aaa1b5; font-size: 13px; padding: 20px 0; }
+.project-create-form { display: grid; gap: 16px; }
+.project-create-form .field { margin: 0; }
+.project-form-options { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+.project-create-form > button { justify-self: end; margin-top: 6px; min-height: 44px; }
+.project-save-card { padding: 20px; border: 1px solid #564167; border-radius: 12px; background: #25202c; }
+.project-save-target { display: flex; gap: 14px; align-items: center; }
+.project-save-target > div { min-width: 0; }
+.project-save-target small { color: #aca0b7; font-size: 11px; }
+.project-save-target strong { display: block; margin: 4px 0; font-size: 17px; overflow-wrap: anywhere; }
+.project-save-target div > span { color: #ac99c0; font-size: 12px; overflow-wrap: anywhere; }
+.project-save-contents { display: flex; flex-wrap: wrap; gap: 8px 20px; border-top: 1px solid #403349; padding-top: 16px; margin-top: 16px; font-size: 12px; }
+.project-save-contents > span { display: flex; align-items: center; gap: 6px; }
+.project-save-contents > span:first-child { color: #c3a1ed; }
+.project-save-card p { color: #b5a9bf; font-size: 12px; line-height: 1.7; margin: 10px 0 18px; }
+.project-save-card .primary { min-height: 44px; font-size: 13px; white-space: normal; }
+.project-save-card .project-download-status { display: block; margin: 12px 0 0; color: #d5b9f2; font-size: 12px; line-height: 1.7; }
+.project-save-alternatives { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.project-save-alternatives button { padding: 13px 10px; gap: 10px; background: transparent; text-align: left; white-space: normal; }
+.project-save-alternatives button:hover { background: #29232f; }
+.project-save-alternatives button > span { flex: 1; }
+.project-save-alternatives svg { flex-shrink: 0; color: #aa8acb; }
+.project-save-alternatives strong { font-size: 12px; display: block; }
+.project-save-alternatives small { font-size: 11px; display: block; color: #a79aaf; margin-top: 4px; line-height: 1.6; }
+.project-autosave { display: flex; gap: 8px; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid #3a3044; font-size: 11px; color: #a396af; line-height: 1.7; }
+.project-autosave svg { flex-shrink: 0; }
+@media (max-width: 600px) {
+  .project-entry-grid, .project-save-alternatives, .project-form-options { grid-template-columns: 1fr; }
+  .project-manager .project-nav [role='tab'] { padding: 9px 5px; gap: 5px; font-size: 12px; }
+  .project-manager .project-nav [role='tab'] svg { display: none; }
+  .project-manager .project-resume { font-size: 10px; gap: 3px; }
+  .project-manager .project-open { gap: 7px; padding: 10px 8px; }
+  .project-manager .project-icon { display: none; }
+  .project-save-card { padding: 16px; }
+  .project-create-form > button { width: 100%; }
+}

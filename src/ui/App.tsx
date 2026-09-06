@@ -365,6 +365,8 @@ export default function App() {
       <ProjectDialog
         open={modal === 'project'}
         onClose={() => setModal(null)}
+        onDrive={() => setModal('drive')}
+        onExport={() => setModal('export')}
       />
       <HistoryDialog
         open={modal === 'history'}
