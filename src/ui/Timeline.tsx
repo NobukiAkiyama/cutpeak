@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
 } from 'react';
 import {
   Move,
@@ -241,6 +242,36 @@ export default function Timeline() {
     node.addEventListener('pointercancel', end);
     node.addEventListener('lostpointercapture', end);
   }
+  function zoomTimeline(e: ReactWheelEvent<HTMLDivElement>) {
+    // Ctrl/Cmd + wheel is also how trackpad pinch gestures are reported by
+    // browsers. Keep regular wheel scrolling available for the timeline.
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+
+    const scroller = e.currentTarget;
+    const bounds = scroller.getBoundingClientRect();
+    const timelineX = e.clientX - bounds.left - 136;
+    const frameAtPointer = Math.max(
+      0,
+      (scroller.scrollLeft + timelineX) / zoom,
+    );
+    const next = Math.min(
+      10,
+      Math.max(0.15, zoom * Math.pow(1.0015, -e.deltaY)),
+    );
+    if (next === zoom) return;
+
+    useEditor.setState({ zoom: next });
+    requestAnimationFrame(() => {
+      scroller.scrollLeft = Math.max(
+        0,
+        Math.min(
+          scroller.scrollLeft + frameAtPointer * (next - zoom),
+          scroller.scrollWidth - scroller.clientWidth,
+        ),
+      );
+    });
+  }
   function drag(
     e: ReactPointerEvent,
     c: Clip,
@@ -390,7 +421,12 @@ export default function Timeline() {
           </button>
         </div>
       )}
-      <div className="timeline-scroll" ref={scroll}>
+      <div
+        className="timeline-scroll"
+        ref={scroll}
+        onWheel={zoomTimeline}
+        title="Ctrl/⌘ + ホイールでタイムラインを拡大縮小"
+      >
         <div className="timeline-content" style={{ width: width + 136 }}>
           <div className="ruler-row">
             <div className="ruler-label">
