@@ -61,8 +61,10 @@ export default function DriveDialog({
       setRecord(r);
       if (r) setMode(r.mode);
       setSaveName(
-        r?.saveName ||
-          (project.name === '無題のプロジェクト' ? '' : project.name),
+        r?.canEdit === false
+          ? `${r.saveName || project.name} - 派生版`
+          : r?.saveName ||
+            (project.name === '無題のプロジェクト' ? '' : project.name),
       );
     });
     if (available && navigator.onLine) {
@@ -160,7 +162,13 @@ export default function DriveDialog({
         </button>
       ) : (
         <>
-          {!record?.folderId ? (
+          {record?.canEdit === false && (
+            <p className="capability-note">
+              このプロジェクトは閲覧専用です。元の共有プロジェクトは変更せず、
+              自分のGoogle Driveに派生版として保存します。
+            </p>
+          )}
+          {!record?.folderId || record?.canEdit === false ? (
             <Field label="保存名">
               <input
                 value={saveName}
@@ -194,13 +202,19 @@ export default function DriveDialog({
           )}
           <button
             className="primary full"
-            disabled={busy || (!record?.folderId && !validSaveName)}
+            disabled={
+              busy ||
+              ((!record?.folderId || record?.canEdit === false) &&
+                !validSaveName)
+            }
             onClick={() =>
               void run(() => syncProject(mode, setStatus, saveName))
             }
           >
             <Upload size={16} />
-            Drive に保存
+            {record?.canEdit === false
+              ? '自分のDriveに派生版として保存'
+              : 'Drive に保存'}
           </button>
           <button
             className="secondary full"

@@ -29,6 +29,16 @@ interface GoogleTokenResponse {
   error_description?: string;
 }
 
+interface DriveFileMetadata {
+  id?: string;
+  version?: string;
+  modifiedTime?: string;
+  mimeType?: string;
+  capabilities?: { canEdit?: boolean };
+  ownedByMe?: boolean;
+  lastModifyingUser?: { displayName?: string; emailAddress?: string };
+}
+
 class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -131,6 +141,14 @@ function assertSameOrigin(request: Request) {
     throw new HttpError(403, 'Invalid request origin');
 }
 
+function assertAppRequest(request: Request) {
+  const origin = request.headers.get('Origin');
+  if (origin && origin !== new URL(request.url).origin)
+    throw new HttpError(403, 'Invalid request origin');
+  if (request.headers.get('X-Requested-With') !== 'XmlHttpRequest')
+    throw new HttpError(403, 'Missing request verification header');
+}
+
 async function tokenRequest(parameters: URLSearchParams) {
   const response = await fetch(GOOGLE_TOKEN_ENDPOINT, {
     method: 'POST',
@@ -231,13 +249,10 @@ async function exchangeCode(request: Request, env: WorkerEnv) {
   );
 }
 
-async function refreshAccessToken(request: Request, env: WorkerEnv) {
+async function driveAccessToken(request: Request, env: WorkerEnv) {
   const session = await findSession(request, env);
   if (!session)
-    return json(
-      { connected: false },
-      { status: 401, headers: { 'Set-Cookie': expiredCookie() } },
-    );
+    throw new HttpError(401, 'Google Drive の再接続が必要です');
   let refreshToken: string;
   try {
     refreshToken = await decryptRefreshToken(
@@ -250,10 +265,7 @@ async function refreshAccessToken(request: Request, env: WorkerEnv) {
     )
       .bind(session.hash)
       .run();
-    return json(
-      { connected: false },
-      { status: 401, headers: { 'Set-Cookie': expiredCookie() } },
-    );
+    throw new HttpError(401, 'Google Drive の再接続が必要です');
   }
   let result: GoogleTokenResponse;
   try {
@@ -272,10 +284,7 @@ async function refreshAccessToken(request: Request, env: WorkerEnv) {
       )
         .bind(session.hash)
         .run();
-      return json(
-        { connected: false },
-        { status: 401, headers: { 'Set-Cookie': expiredCookie() } },
-      );
+      throw new HttpError(401, 'Google Drive の再接続が必要です');
     }
     throw error;
   }
@@ -284,10 +293,27 @@ async function refreshAccessToken(request: Request, env: WorkerEnv) {
   )
     .bind(Date.now(), Date.now() + SESSION_TTL_SECONDS * 1000, session.hash)
     .run();
-  return json(
-    { access_token: result.access_token, expires_in: result.expires_in },
-    { headers: { 'Set-Cookie': sessionCookie(cookieValue(request)) } },
-  );
+  return {
+    accessToken: result.access_token!,
+    expiresIn: result.expires_in!,
+  };
+}
+
+async function refreshAccessToken(request: Request, env: WorkerEnv) {
+  try {
+    const token = await driveAccessToken(request, env);
+    return json(
+      { access_token: token.accessToken, expires_in: token.expiresIn },
+      { headers: { 'Set-Cookie': sessionCookie(cookieValue(request)) } },
+    );
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 401)
+      return json(
+        { connected: false },
+        { status: 401, headers: { 'Set-Cookie': expiredCookie() } },
+      );
+    throw error;
+  }
 }
 
 async function logout(request: Request, env: WorkerEnv) {
@@ -333,6 +359,100 @@ function driveConfig(env: WorkerEnv) {
   });
 }
 
+function driveFileId(pathname: string) {
+  const match = pathname.match(/^\/api\/drive-sync\/projects\/([A-Za-z0-9_-]+)$/);
+  if (!match) throw new HttpError(404, 'Not found');
+  return match[1];
+}
+
+function googleDriveUrl(fileId: string, query: string) {
+  return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}${query}`;
+}
+
+async function googleDriveError(response: Response) {
+  let detail = '';
+  try {
+    const body = (await response.json()) as {
+      error?: { message?: string };
+    };
+    detail = body.error?.message || '';
+  } catch {}
+  return new HttpError(
+    response.status,
+    detail || `Google Drive ${response.status}`,
+  );
+}
+
+async function driveProject(request: Request, env: WorkerEnv) {
+  assertAppRequest(request);
+  const fileId = driveFileId(new URL(request.url).pathname);
+  const { accessToken } = await driveAccessToken(request, env);
+  const auth = { Authorization: `Bearer ${accessToken}` };
+  if (request.method === 'GET') {
+    const [contentResponse, metadataResponse] = await Promise.all([
+      fetch(googleDriveUrl(fileId, '?alt=media'), { headers: auth }),
+      fetch(
+        googleDriveUrl(
+          fileId,
+          '?fields=id,version,modifiedTime,mimeType,capabilities/canEdit,ownedByMe,lastModifyingUser',
+        ),
+        { headers: auth },
+      ),
+    ]);
+    if (!contentResponse.ok) throw await googleDriveError(contentResponse);
+    if (!metadataResponse.ok) throw await googleDriveError(metadataResponse);
+    const manifest = await contentResponse.json();
+    const metadata = (await metadataResponse.json()) as DriveFileMetadata;
+    return json({
+      manifest,
+      etag: contentResponse.headers.get('ETag'),
+      version: metadata.version || null,
+      modifiedTime: metadata.modifiedTime || null,
+      canEdit: metadata.capabilities?.canEdit ?? null,
+      ownedByMe: metadata.ownedByMe ?? null,
+      lastModifyingUser: metadata.lastModifyingUser || null,
+    });
+  }
+  if (request.method === 'PATCH') {
+    const expectedEtag = request.headers.get('If-Match');
+    if (!expectedEtag)
+      throw new HttpError(428, 'Driveの条件付き更新にETagが必要です');
+    const length = Number(request.headers.get('Content-Length') || 0);
+    if (length > 4 * 1024 * 1024)
+      throw new HttpError(413, 'プロジェクト情報が大きすぎます');
+    const body = await request.text();
+    if (new TextEncoder().encode(body).byteLength > 4 * 1024 * 1024)
+      throw new HttpError(413, 'プロジェクト情報が大きすぎます');
+    let manifest: unknown;
+    try {
+      manifest = JSON.parse(body);
+    } catch {
+      throw new HttpError(400, 'プロジェクト情報が不正です');
+    }
+    const response = await fetch(
+      googleDriveUrl(fileId, '?uploadType=media&fields=id,name'),
+      {
+        method: 'PATCH',
+        headers: {
+          ...auth,
+          'Content-Type': 'application/json',
+          'If-Match': expectedEtag,
+        },
+        body: JSON.stringify(manifest),
+      },
+    );
+    if (response.status === 412)
+      throw new HttpError(412, 'Driveのプロジェクトが先に更新されています');
+    if (!response.ok) throw await googleDriveError(response);
+    const updated = (await response.json()) as Record<string, unknown>;
+    return json({
+      ...updated,
+      etag: response.headers.get('ETag'),
+    });
+  }
+  throw new HttpError(405, 'Method not allowed');
+}
+
 async function handle(request: Request, env: WorkerEnv) {
   const url = new URL(request.url);
   if (url.pathname === '/api/drive-auth/config' && request.method === 'GET')
@@ -343,6 +463,8 @@ async function handle(request: Request, env: WorkerEnv) {
     return refreshAccessToken(request, env);
   if (url.pathname === '/api/drive-auth/logout' && request.method === 'POST')
     return logout(request, env);
+  if (url.pathname.startsWith('/api/drive-sync/projects/'))
+    return driveProject(request, env);
   return json({ error: 'Not found' }, { status: 404 });
 }
 

@@ -51,6 +51,15 @@ export interface SyncRecord {
   assetIds: Record<string, string>;
   conflictHead?: string;
   lastSyncedSignature?: string;
+  canEdit?: boolean | null;
+  remoteVersion?: string;
+  origin?: DriveOrigin;
+}
+export interface DriveOrigin {
+  fileId: string;
+  folderId: string;
+  head: string;
+  saveName?: string;
 }
 interface DriveManifest {
   format: 'framecut-drive';
@@ -61,6 +70,14 @@ interface DriveManifest {
   assetIds: Record<string, string>;
   folderId: string;
   saveName?: string;
+  origin?: DriveOrigin;
+}
+interface DriveRemoteInfo {
+  manifest: DriveManifest;
+  repository: Repository;
+  etag: string | null;
+  version: string | null;
+  canEdit: boolean | null;
 }
 export class DrivePreconditionError extends Error {}
 interface DriveFile {
@@ -307,6 +324,26 @@ async function request(url: string, init: RequestInit = {}, retried = false) {
   }
   return response;
 }
+async function projectRequest(fileId: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set('X-Requested-With', 'XmlHttpRequest');
+  headers.set('Accept', 'application/json');
+  const response = await fetch(
+    `/api/drive-sync/projects/${encodeURIComponent(fileId)}`,
+    { ...init, credentials: 'same-origin', headers },
+  );
+  if (!response.ok) {
+    if (response.status === 412)
+      throw new DrivePreconditionError('Drive の保存先が更新されました');
+    let detail = '';
+    try {
+      const body = (await response.json()) as { error?: string };
+      detail = body.error || '';
+    } catch {}
+    throw Error(`Drive ${response.status}: ${detail || response.statusText}`);
+  }
+  return response;
+}
 async function json<T>(path: string, init?: RequestInit) {
   return (
     await request(`https://www.googleapis.com/drive/v3/${path}`, init)
@@ -510,12 +547,15 @@ export async function pickProject(config: DriveConfig): Promise<string | null> {
     throw Error('Cutpeak のプロジェクトフォルダを選択してください');
   return files.files[0].id;
 }
-export async function fetchRemote(fileId: string) {
-  const response = await request(
-    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
-  );
-  const etag = response.headers.get('ETag');
-  const manifest = (await response.json()) as DriveManifest;
+export async function fetchRemote(fileId: string): Promise<DriveRemoteInfo> {
+  const response = await projectRequest(fileId);
+  const remote = (await response.json()) as {
+    manifest: DriveManifest;
+    etag: string | null;
+    version: string | null;
+    canEdit: boolean | null;
+  };
+  const { manifest } = remote;
   if (
     manifest.format !== 'framecut-drive' ||
     manifest.version !== 1 ||
@@ -531,7 +571,13 @@ export async function fetchRemote(fileId: string) {
   );
   if (repository.head !== manifest.head)
     throw Error('Drive のプロジェクトと履歴が一致しません');
-  return { manifest, repository, etag };
+  return {
+    manifest,
+    repository,
+    etag: remote.etag,
+    version: remote.version,
+    canEdit: remote.canEdit,
+  };
 }
 export async function cacheRemoteAsset(
   projectId: string,
@@ -553,7 +599,7 @@ export async function pullDrive(
   fileId: string,
   progress: (m: string) => void,
 ): Promise<SavedProject> {
-  const { manifest, repository } = await fetchRemote(fileId);
+  const { manifest, repository, canEdit, version } = await fetchRemote(fileId);
   const p = repository.commits[repository.head].project;
   for (const a of p.assets) {
     const remote = manifest.assetIds[a.id];
@@ -575,6 +621,9 @@ export async function pullDrive(
     pending: false,
     mode: Object.keys(manifest.assetIds).length ? 'cached' : 'local',
     assetIds: manifest.assetIds,
+    canEdit,
+    remoteVersion: version || undefined,
+    origin: manifest.origin,
   } satisfies SyncRecord);
   return { project: p, repository };
 }
@@ -591,18 +640,52 @@ export async function pushDrive(
     mode,
     assetIds: {},
   };
-  if (!record.folderId) {
-    const normalized = normalizeDriveSaveName(saveName || '');
-    if (!normalized || normalized === '無題のプロジェクト')
+  let expectedHead: string | null = null;
+  let remote: DriveRemoteInfo | undefined;
+  const requestedSaveName = normalizeDriveSaveName(
+    saveName ||
+      (record.canEdit === false
+        ? `${record.saveName || p.name} - 派生版`
+        : record.saveName || ''),
+  );
+  if (!record.folderId || record.canEdit === false) {
+    if (!requestedSaveName || requestedSaveName === '無題のプロジェクト')
       throw Error('保存名を入力してから保存してください');
   } else if (!record.saveName) {
     record.saveName = normalizeDriveSaveName(p.name) || '既存プロジェクト';
   }
   record = { ...record, pending: true, mode };
   await writeMeta(`drive-sync:${p.id}`, record);
-  let expectedHead: string | null = null;
   if (record.fileId) {
-    const remote = await fetchRemote(record.fileId);
+    remote = await fetchRemote(record.fileId);
+    if (remote.canEdit === false) {
+      const origin =
+        record.origin || {
+          fileId: record.fileId,
+          folderId: remote.manifest.folderId,
+          head: remote.manifest.head,
+          saveName: remote.manifest.saveName,
+        };
+      record = {
+        ...record,
+        fileId: undefined,
+        folderId: undefined,
+        saveName:
+          requestedSaveName ||
+          `${remote.manifest.saveName || p.name} - 派生版`,
+        lastSyncedHead: null,
+        lastSyncedSignature: undefined,
+        assetIds: {},
+        canEdit: true,
+        remoteVersion: undefined,
+        origin,
+        pending: true,
+      };
+      await writeMeta(`drive-sync:${p.id}`, record);
+      remote = undefined;
+    }
+  }
+  if (record.fileId && remote) {
     expectedHead = remote.manifest.head;
     const state = syncState(r.head, expectedHead, record.lastSyncedHead);
     const localSignature = repositorySignature(r),
@@ -624,10 +707,12 @@ export async function pushDrive(
       await writeMeta(`drive-sync:${p.id}`, record);
       return { record };
     }
+    record.canEdit = remote.canEdit;
+    record.remoteVersion = remote.version || undefined;
   }
   progress('Drive の保存先を準備中…');
   if (!record.folderId) {
-    const created = await createProjectFolder(saveName || '', p.id);
+    const created = await createProjectFolder(requestedSaveName, p.id);
     record.folderId = created.folderId;
     record.saveName = created.saveName;
     await writeMeta(`drive-sync:${p.id}`, record);
@@ -674,23 +759,6 @@ export async function pushDrive(
     `pack-${r.head}.ndjson`,
     history,
   );
-  const pointer = {
-    head: r.head,
-    branches: r.branches,
-    repositoryFileId: pack.id,
-  };
-  await upload(
-    blobJson(pointer),
-    'repository.json',
-    root,
-    children.files.find((f) => f.name === 'repository.json')?.id,
-  );
-  // Check again immediately before publishing. A remote change is kept as a separate branch.
-  if (record.fileId) {
-    const latest = await fetchRemote(record.fileId);
-    if (latest.manifest.head !== expectedHead)
-      return { conflict: latest.repository, record };
-  }
   const manifest: DriveManifest = {
     format: 'framecut-drive',
     version: 1,
@@ -700,6 +768,7 @@ export async function pushDrive(
     assetIds: record.assetIds,
     folderId: root,
     saveName: record.saveName,
+    origin: record.origin,
   };
   let result: DriveFile;
   if (record.fileId) {
@@ -708,21 +777,18 @@ export async function pushDrive(
       return { conflict: latest.repository, record };
     if (!latest.etag)
       throw Error(
-        'Drive が競合確認用の ETag を返しませんでした。上書きは行っていません。「別の保存先へ保存」を使ってください。',
+        'Driveの最新状態を安全に確認できませんでした。保存を保留しました。再読み込みしてから再試行してください。',
       );
     try {
       result = (await (
-        await request(
-          `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(record.fileId)}?uploadType=media&fields=id,name`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'If-Match': latest.etag,
-            },
-            body: blobJson(manifest),
+        await projectRequest(record.fileId, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'If-Match': latest.etag,
           },
-        )
+          body: JSON.stringify(manifest),
+        })
       ).json()) as DriveFile;
     } catch (e) {
       if (e instanceof DrivePreconditionError)
@@ -740,10 +806,23 @@ export async function pushDrive(
       undefined,
       `${p.id}/manifest/${r.head}`,
     );
+  const pointer = {
+    head: r.head,
+    branches: r.branches,
+    repositoryFileId: pack.id,
+  };
+  await upload(
+    blobJson(pointer),
+    'repository.json',
+    root,
+    children.files.find((f) => f.name === 'repository.json')?.id,
+  );
   record.fileId = result.id;
+  record.folderId = root;
   record.lastSyncedHead = r.head;
   record.lastSyncedSignature = repositorySignature(r);
   record.pending = false;
+  record.canEdit = true;
   delete record.conflictHead;
   await writeMeta(`drive-sync:${p.id}`, record);
   return { record };

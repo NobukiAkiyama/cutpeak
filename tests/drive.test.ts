@@ -67,15 +67,26 @@ function fixture() {
 }
 function route(
   remote: Repository,
-  options: { etag?: string; rejectPublish?: boolean } = { etag: '"version-1"' },
+  options: {
+    etag?: string;
+    rejectPublish?: boolean;
+    canEdit?: boolean;
+  } = { etag: '"version-1"' },
 ) {
   let session = 0;
   return vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const s = url instanceof Request ? url.url : url.toString(),
       method = init?.method || 'GET';
-    if (s.includes('/files/project?alt=media'))
-      return response(
-        {
+    if (s.includes('/api/drive-sync/projects/project')) {
+      if (method === 'PATCH') {
+        if (options.rejectPublish) return response({}, 412);
+        return response(
+          { id: 'project', name: 'project.json', etag: options.etag },
+          200,
+        );
+      }
+      return response({
+        manifest: {
           format: 'framecut-drive',
           version: 1,
           head: remote.head,
@@ -84,9 +95,11 @@ function route(
           assetIds: {},
           folderId: 'folder',
         },
-        200,
-        options.etag ? { ETag: options.etag } : {},
-      );
+        etag: options.etag || null,
+        version: '1',
+        canEdit: options.canEdit ?? true,
+      });
+    }
     if (s.includes('/files/pack?alt=media')) return response(remote);
     if (s.includes('/files?q='))
       return response({
@@ -109,10 +122,6 @@ function route(
       });
     if (s.includes('/session/'))
       return response({ id: `uploaded-${session}`, name: 'pack' });
-    if (s.includes('/files/project?uploadType=media') && method === 'PATCH') {
-      if (options.rejectPublish) return response({}, 412);
-      return response({ id: 'project', name: 'project.json' });
-    }
     throw Error(`Unexpected test request: ${method} ${s}`);
   });
 }
@@ -234,10 +243,11 @@ describe('Drive data preservation', () => {
       () => {},
     );
     expect(result.conflict).toBeUndefined();
-    const publish = fetch.mock.calls.find(([url]) =>
-      (url instanceof Request ? url.url : url.toString()).includes(
-        'uploadType=media',
-      ),
+    const publish = fetch.mock.calls.find(
+      ([url, init]) =>
+        (url instanceof Request ? url.url : url.toString()).includes(
+          '/api/drive-sync/projects/project',
+        ) && (init?.method || 'GET') === 'PATCH',
     )!;
     expect(new Headers(publish[1]?.headers).get('If-Match')).toBe(
       '"version-1"',
@@ -255,12 +265,102 @@ describe('Drive data preservation', () => {
         'local',
         () => {},
       ),
-    ).rejects.toThrow('ETag');
+    ).rejects.toThrow('Driveの最新状態を安全に確認できませんでした');
     expect(
-      fetch.mock.calls.some(([url]) =>
+      fetch.mock.calls.some(([url, init]) =>
         (url instanceof Request ? url.url : url.toString()).includes(
-          'uploadType=media',
-        ),
+          '/api/drive-sync/projects/project',
+        ) && (init?.method || 'GET') === 'PATCH',
+      ),
+    ).toBe(false);
+  });
+  it('forks a viewer edit into the current user Drive without publishing to the source', async () => {
+    const { p, e, remote } = fixture();
+    await writeMeta(`drive-sync:${p.id}`, {
+      fileId: 'project',
+      folderId: 'shared-folder',
+      saveName: '共有プロジェクト',
+      lastSyncedHead: remote.head,
+      pending: true,
+      mode: 'local',
+      assetIds: {},
+      canEdit: false,
+    } satisfies SyncRecord);
+    let session = 0;
+    const createdFolders: string[] = [];
+    const fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const s = url instanceof Request ? url.url : url.toString();
+      const method = init?.method || 'GET';
+      if (s.includes('/api/drive-sync/projects/project')) {
+        if (method === 'PATCH') return response({}, 500);
+        return response({
+          manifest: {
+            format: 'framecut-drive',
+            version: 1,
+            head: remote.head,
+            project: remote.commits[remote.head].project,
+            repositoryFileId: 'pack',
+            assetIds: {},
+            folderId: 'shared-folder',
+            saveName: '共有プロジェクト',
+          },
+          etag: '"source-version"',
+          version: '1',
+          canEdit: false,
+        });
+      }
+      if (s.includes('/files/pack?alt=media')) return response(remote);
+      if (s.includes('/files?q=')) return response({ files: [] });
+      if (s.endsWith('/drive/v3/files?fields=id,name')) {
+        if (typeof init?.body !== 'string') throw Error('Folder metadata must be JSON');
+        const body = JSON.parse(init.body) as { name: string };
+        createdFolders.push(body.name);
+        return response({
+          id: `folder-${createdFolders.length}`,
+          name: body.name,
+          mimeType: 'application/vnd.google-apps.folder',
+        });
+      }
+      if (s.includes('uploadType=resumable'))
+        return response({}, 200, {
+          Location: `https://www.googleapis.com/fork-session/${++session}`,
+        });
+      if (s.includes('/fork-session/'))
+        return response({ id: `uploaded-${session}`, name: 'uploaded' });
+      throw Error(`Unexpected test request: ${method} ${s}`);
+    });
+    vi.stubGlobal('fetch', fetch);
+
+    const result = await pushDrive(
+      { project: e.project, repository: e.repository },
+      'local',
+      () => {},
+    );
+
+    expect(createdFolders).toEqual([
+      'Cutpeak',
+      '共有プロジェクト - 派生版.cutpeak',
+      'history',
+    ]);
+    expect(result.conflict).toBeUndefined();
+    expect(result.record).toMatchObject({
+      fileId: 'uploaded-2',
+      folderId: 'folder-2',
+      saveName: '共有プロジェクト - 派生版',
+      canEdit: true,
+      origin: {
+        fileId: 'project',
+        folderId: 'shared-folder',
+        head: remote.head,
+        saveName: '共有プロジェクト',
+      },
+      pending: false,
+    });
+    expect(
+      fetch.mock.calls.some(([url, init]) =>
+        (url instanceof Request ? url.url : url.toString()).includes(
+          '/api/drive-sync/projects/project',
+        ) && (init?.method || 'GET') === 'PATCH',
       ),
     ).toBe(false);
   });
@@ -276,10 +376,10 @@ describe('Drive data preservation', () => {
     );
     expect(result.conflict?.head).toBe(remote.head);
     expect(
-      fetch.mock.calls.filter(([url]) =>
+      fetch.mock.calls.filter(([url, init]) =>
         (url instanceof Request ? url.url : url.toString()).includes(
-          'uploadType=media',
-        ),
+          '/api/drive-sync/projects/project',
+        ) && (init?.method || 'GET') === 'PATCH',
       ),
     ).toHaveLength(1);
   });
