@@ -125,7 +125,9 @@ export default function App() {
         else api.undo();
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        void persistNow();
+        if (s.selected)
+          api.execute({ type: 'clip.split', clipId: s.selected, frame: s.frame });
+        else void persistNow();
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         if (s.selected)
@@ -149,8 +151,6 @@ export default function App() {
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && s.selected) {
         e.preventDefault();
         api.execute({ type: 'clip.delete', clipId: s.selected });
-      } else if (e.key.toLowerCase() === 's' && s.selected) {
-        api.execute({ type: 'clip.split', clipId: s.selected, frame: s.frame });
       } else if (e.key === 'Escape') {
         api.cancel();
         api.select(null);
@@ -472,12 +472,12 @@ export default function App() {
             ['1フレーム移動', '← / →'],
             ['1秒移動', 'Shift + ← / →'],
             ['先頭・末尾へ', 'Home / End'],
-            ['分割', 'S'],
+            ['分割', '⌘ / Ctrl + S（選択中）'],
             ['削除', 'Delete'],
             ['複製', '⌘ / Ctrl + D'],
             ['元に戻す', '⌘ / Ctrl + Z'],
             ['やり直す', '⌘ / Ctrl + Shift + Z'],
-            ['今すぐ保存', '⌘ / Ctrl + S'],
+            ['今すぐ保存', '⌘ / Ctrl + S（未選択時）'],
             ['スナップを一時解除', 'Alt + ドラッグ'],
           ].map(([label, key]) => (
             <div key={label}>
