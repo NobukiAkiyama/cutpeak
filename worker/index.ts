@@ -369,6 +369,12 @@ function googleDriveUrl(fileId: string, query: string) {
   return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}${query}`;
 }
 
+const googleDocumentMime = 'application/vnd.google-apps.document';
+
+function isGoogleWorkspaceFile(mimeType: string | undefined) {
+  return !!mimeType?.startsWith('application/vnd.google-apps.');
+}
+
 async function googleDriveError(response: Response) {
   let detail = '';
   try {
@@ -389,26 +395,46 @@ async function driveProject(request: Request, env: WorkerEnv) {
   const { accessToken } = await driveAccessToken(request, env);
   const auth = { Authorization: `Bearer ${accessToken}` };
   if (request.method === 'GET') {
-    const [contentResponse, metadataResponse] = await Promise.all([
-      fetch(googleDriveUrl(fileId, '?alt=media'), { headers: auth }),
-      fetch(
-        googleDriveUrl(
-          fileId,
-          '?fields=id,version,modifiedTime,mimeType,capabilities/canEdit,ownedByMe,lastModifyingUser',
-        ),
-        { headers: auth },
+    const metadataResponse = await fetch(
+      googleDriveUrl(
+        fileId,
+        '?fields=id,version,modifiedTime,mimeType,capabilities/canEdit,ownedByMe,lastModifyingUser',
       ),
-    ]);
-    if (!contentResponse.ok) throw await googleDriveError(contentResponse);
+      { headers: auth },
+    );
     if (!metadataResponse.ok) throw await googleDriveError(metadataResponse);
-    const manifest = await contentResponse.json();
     const metadata = (await metadataResponse.json()) as DriveFileMetadata;
+    const isWorkspaceFile = isGoogleWorkspaceFile(metadata.mimeType);
+    if (isWorkspaceFile && metadata.mimeType !== googleDocumentMime)
+      throw new HttpError(
+        422,
+        'Google ドキュメント形式のファイルは Cutpeak のプロジェクトとして開けません。Cutpeak で作成した project.json を選択してください。',
+      );
+    const contentResponse = await fetch(
+      googleDriveUrl(
+        fileId,
+        isWorkspaceFile
+          ? `export?mimeType=${encodeURIComponent('text/plain')}`
+          : '?alt=media',
+      ),
+      { headers: auth },
+    );
+    if (!contentResponse.ok) throw await googleDriveError(contentResponse);
+    let manifest: unknown;
+    try {
+      manifest = await contentResponse.json();
+    } catch {
+      throw new HttpError(
+        422,
+        '選択したファイルは Cutpeak の project.json ではありません。',
+      );
+    }
     return json({
       manifest,
-      etag: contentResponse.headers.get('ETag'),
+      etag: isWorkspaceFile ? null : contentResponse.headers.get('ETag'),
       version: metadata.version || null,
       modifiedTime: metadata.modifiedTime || null,
-      canEdit: metadata.capabilities?.canEdit ?? null,
+      canEdit: isWorkspaceFile ? false : (metadata.capabilities?.canEdit ?? null),
       ownedByMe: metadata.ownedByMe ?? null,
       lastModifyingUser: metadata.lastModifyingUser || null,
     });

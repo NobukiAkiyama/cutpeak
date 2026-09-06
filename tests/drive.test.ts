@@ -3,6 +3,7 @@ import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import {
   connected,
   disconnect,
+  fetchRemote,
   normalizeDriveSaveName,
   pushDrive,
   restoreConnection,
@@ -273,6 +274,56 @@ describe('Drive data preservation', () => {
         ) && (init?.method || 'GET') === 'PATCH',
       ),
     ).toBe(false);
+  });
+  it('exports a legacy Google Doc repository after Drive rejects binary download', async () => {
+    const { remote } = fixture();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: RequestInfo | URL) => {
+        const s = url instanceof Request ? url.url : url.toString();
+        if (s.includes('/api/drive-sync/projects/project'))
+          return response({
+            manifest: {
+              format: 'framecut-drive',
+              version: 1,
+              head: remote.head,
+              project: remote.commits[remote.head].project,
+              repositoryFileId: 'pack',
+              assetIds: {},
+              folderId: 'folder',
+            },
+            etag: null,
+            version: '1',
+            canEdit: false,
+          });
+        if (s.includes('/files/pack?alt=media'))
+          return response(
+            {
+              error: {
+                message:
+                  'Only files with binary content can be downloaded. Use Export with Docs Editors files.',
+              },
+            },
+            403,
+          );
+        if (s.includes('/files/pack?fields=id,name,mimeType'))
+          return response({
+            id: 'pack',
+            name: 'pack.ndjson',
+            mimeType: 'application/vnd.google-apps.document',
+          });
+        if (s.includes('/files/pack/export?mimeType='))
+          return new Response(JSON.stringify(remote), {
+            status: 200,
+            headers: { 'Content-Type': 'text/plain' },
+          });
+        throw Error(`Unexpected request: ${s}`);
+      }),
+    );
+    await expect(fetchRemote('project')).resolves.toMatchObject({
+      repository: remote,
+      canEdit: false,
+    });
   });
   it('forks a viewer edit into the current user Drive without publishing to the source', async () => {
     const { p, e, remote } = fixture();

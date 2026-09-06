@@ -349,6 +349,27 @@ async function json<T>(path: string, init?: RequestInit) {
     await request(`https://www.googleapis.com/drive/v3/${path}`, init)
   ).json() as Promise<T>;
 }
+const googleDocumentMime = 'application/vnd.google-apps.document';
+
+async function repositoryContent(fileId: string) {
+  const mediaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`;
+  try {
+    return await request(mediaUrl);
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !error.message.includes('Only files with binary content')
+    )
+      throw error;
+    const metadata = await json<DriveFile>(
+      `files/${encodeURIComponent(fileId)}?fields=id,name,mimeType`,
+    );
+    if (metadata.mimeType !== googleDocumentMime) throw error;
+    return request(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent('text/plain')}`,
+    );
+  }
+}
 async function folder(
   name: string,
   parent?: string,
@@ -563,11 +584,7 @@ export async function fetchRemote(fileId: string): Promise<DriveRemoteInfo> {
   )
     throw Error('Cutpeak の project.json を選択してください');
   const repository = parsePack(
-    await (
-      await request(
-        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(manifest.repositoryFileId)}?alt=media`,
-      )
-    ).text(),
+    await (await repositoryContent(manifest.repositoryFileId)).text(),
   );
   if (repository.head !== manifest.head)
     throw Error('Drive のプロジェクトと履歴が一致しません');
