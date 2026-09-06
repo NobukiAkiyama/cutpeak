@@ -925,6 +925,71 @@ h3 {
 .preview-stage:fullscreen canvas {
   object-fit: contain;
 }
+.fullscreen-transport {
+  display: none;
+}
+.preview-stage:fullscreen .fullscreen-transport {
+  position: absolute;
+  z-index: 5;
+  right: 24px;
+  bottom: 20px;
+  left: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  height: 52px;
+  padding: 0 14px;
+  color: #f3f1f6;
+  background: #111116cc;
+  border: 1px solid #ffffff26;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px #0008;
+  backdrop-filter: blur(10px);
+}
+.preview-stage:fullscreen .fullscreen-transport .transport-buttons {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  grid-column: 2;
+  margin: 0;
+  transform: none;
+}
+.preview-stage:fullscreen .fullscreen-transport button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 6px;
+  color: #f3f1f6;
+  border-radius: 8px;
+}
+.preview-stage:fullscreen .fullscreen-transport button:hover {
+  background: #ffffff1c;
+}
+.preview-stage:fullscreen .fullscreen-transport .play-button {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  color: #171419 !important;
+  background: #f3f1f6;
+  border-radius: 50%;
+}
+.preview-stage:fullscreen .fullscreen-transport .play-button:hover {
+  background: #fff;
+}
+.preview-stage:fullscreen .fullscreen-transport > button:last-child {
+  grid-column: 3;
+  justify-self: end;
+  margin-left: 0;
+}
+.preview-stage:fullscreen .fullscreen-transport .timecode {
+  grid-column: 1;
+  color: #f3f1f6;
+  white-space: nowrap;
+}
 .stage-placeholder {
   position: absolute;
   inset: 0;

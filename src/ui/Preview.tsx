@@ -12,6 +12,7 @@ import {
   SkipBack,
   SkipForward,
   Maximize,
+  Minimize,
   RotateCw,
   Upload,
 } from 'lucide-react';
@@ -530,6 +531,50 @@ export default function Preview() {
               )}
             </div>
           )}
+          <div
+            className="fullscreen-transport"
+            onPointerDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            <span className="timecode">
+              {timecode(frame, project)} <em>/ {timecode(total, project)}</em>
+            </span>
+            <div className="transport-buttons">
+              <button
+                title="1フレーム戻る（←）"
+                onClick={() => api.seek(frame - 1)}
+                disabled={!total}
+              >
+                <SkipBack size={18} />
+              </button>
+              <button
+                title="再生・停止（Space）"
+                className="play-button"
+                disabled={!total || !ready}
+                onClick={() => void toggle()}
+              >
+                {playing ? (
+                  <Pause size={22} fill="currentColor" />
+                ) : (
+                  <Play size={22} fill="currentColor" />
+                )}
+              </button>
+              <button
+                title="1フレーム進む（→）"
+                onClick={() => api.seek(frame + 1)}
+                disabled={!total}
+              >
+                <SkipForward size={18} />
+              </button>
+            </div>
+            <button
+              title="全画面表示を終了"
+              aria-label="全画面表示を終了"
+              onClick={() => void document.exitFullscreen()}
+            >
+              <Minimize size={18} />
+            </button>
+          </div>
         </div>
       </div>
       <input
