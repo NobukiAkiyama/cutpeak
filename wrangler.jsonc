@@ -8,6 +8,10 @@
   "observability": {
     "enabled": true
   },
+  "vars": {
+    "GOOGLE_CLIENT_ID": "173255513906-8kk3ktfd00ltpcbquqp0kofl9o29fomq.apps.googleusercontent.com",
+    "GOOGLE_APP_ID": "173255513906"
+  },
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",

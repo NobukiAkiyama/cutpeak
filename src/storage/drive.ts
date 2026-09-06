@@ -18,6 +18,29 @@ export interface DriveConfig {
   apiKey: string;
   appId: string;
 }
+export async function loadDriveConfig(): Promise<DriveConfig> {
+  const fallback = {
+    clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+    apiKey: import.meta.env.VITE_GOOGLE_API_KEY || '',
+    appId: import.meta.env.VITE_GOOGLE_APP_ID || '',
+  };
+  try {
+    const response = await fetch('/api/drive-auth/config', {
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return fallback;
+    const value: unknown = await response.json();
+    if (typeof value !== 'object' || value === null) return fallback;
+    const config = value as Partial<DriveConfig>;
+    return {
+      clientId: typeof config.clientId === 'string' ? config.clientId : fallback.clientId,
+      apiKey: typeof config.apiKey === 'string' ? config.apiKey : fallback.apiKey,
+      appId: typeof config.appId === 'string' ? config.appId : fallback.appId,
+    };
+  } catch {
+    return fallback;
+  }
+}
 export interface SyncRecord {
   fileId?: string;
   folderId?: string;
@@ -183,10 +206,8 @@ export async function prepareGoogle() {
   await scriptPromise;
 }
 export async function connect(config: DriveConfig) {
-  if (!config.clientId || !config.apiKey || !config.appId)
-    throw Error(
-      'Google Cloud の Client ID、API Key、App ID を設定してください',
-    );
+  if (!config.clientId)
+    throw Error('Google Cloud の Client ID を設定してください');
   await prepareGoogle();
   const stateBytes = new Uint8Array(32);
   crypto.getRandomValues(stateBytes);
@@ -401,6 +422,10 @@ export async function upload(
 const blobJson = (v: unknown) =>
   new Blob([JSON.stringify(v)], { type: 'application/json' });
 export async function pickProject(config: DriveConfig): Promise<string | null> {
+  if (!config.apiKey || !config.appId)
+    throw Error(
+      'Google Picker を使うには Google API Key とプロジェクト番号（App ID）が必要です',
+    );
   if (!connected()) await connect(config);
   await new Promise<void>((resolve) => window.gapi!.load('picker', resolve));
   const folderId = await new Promise<string | null>((resolve, reject) => {
@@ -447,7 +472,7 @@ export async function fetchRemote(fileId: string) {
     manifest.version !== 1 ||
     !manifest.repositoryFileId
   )
-    throw Error('Framecut の project.json を選択してください');
+    throw Error('Cutpeak の project.json を選択してください');
   const repository = parsePack(
     await (
       await request(

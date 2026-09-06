@@ -17,6 +17,7 @@ import {
   restoreConnection,
   pickProject,
   pullDrive,
+  loadDriveConfig,
   type DriveConfig,
   type SyncRecord,
 } from '../storage/drive';
@@ -31,12 +32,12 @@ export default function DriveDialog({
   onClose: () => void;
 }) {
   const { project } = useEditor();
-  const config: DriveConfig = {
+  const [config, setConfig] = useState<DriveConfig>({
     clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
     apiKey: import.meta.env.VITE_GOOGLE_API_KEY || '',
     appId: import.meta.env.VITE_GOOGLE_APP_ID || '',
-  };
-  const available = !!(config.clientId && config.apiKey && config.appId);
+  });
+  const available = !!config.clientId;
   const [isConnected, setConnected] = useState(connected()),
     [mode, setMode] = useState<SyncRecord['mode']>('portable'),
     [status, setStatus] = useState(''),
@@ -51,6 +52,9 @@ export default function DriveDialog({
   useEffect(() => {
     if (!open) return;
     let active = true;
+    void loadDriveConfig().then((loaded) => {
+      if (active) setConfig(loaded);
+    });
     setConnected(connected());
     void readMeta<SyncRecord>(`drive-sync:${project.id}`).then((r) => {
       setRecord(r);

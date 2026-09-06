@@ -9,7 +9,6 @@ import {
   Undo2,
   Redo2,
   History,
-  Scissors,
   ChevronDown,
   CheckCircle2,
   LoaderCircle,
@@ -151,9 +150,7 @@ export default function App() {
           onClick={() => setModal('project')}
           title="プロジェクトを開く"
         >
-          <span className="brand-mark">
-            <Scissors size={20} />
-          </span>
+          <img className="brand-mark" src="/favicon-v4.jpg" alt="" />
           Cutpeak
         </button>
         <button

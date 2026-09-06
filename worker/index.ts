@@ -6,6 +6,11 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 type WorkerEnv = Env & {
   GOOGLE_CLIENT_ID: string;
+  GOOGLE_API_KEY?: string;
+  GOOGLE_APP_ID?: string;
+  VITE_GOOGLE_CLIENT_ID?: string;
+  VITE_GOOGLE_API_KEY?: string;
+  VITE_GOOGLE_APP_ID?: string;
   GOOGLE_CLIENT_SECRET: string;
   SESSION_ENCRYPTION_KEY: string;
 };
@@ -320,8 +325,18 @@ async function logout(request: Request, env: WorkerEnv) {
   );
 }
 
+function driveConfig(env: WorkerEnv) {
+  return json({
+    clientId: env.GOOGLE_CLIENT_ID || env.VITE_GOOGLE_CLIENT_ID || '',
+    apiKey: env.GOOGLE_API_KEY || env.VITE_GOOGLE_API_KEY || '',
+    appId: env.GOOGLE_APP_ID || env.VITE_GOOGLE_APP_ID || '',
+  });
+}
+
 async function handle(request: Request, env: WorkerEnv) {
   const url = new URL(request.url);
+  if (url.pathname === '/api/drive-auth/config' && request.method === 'GET')
+    return driveConfig(env);
   if (url.pathname === '/api/drive-auth/exchange' && request.method === 'POST')
     return exchangeCode(request, env);
   if (url.pathname === '/api/drive-auth/token' && request.method === 'GET')
