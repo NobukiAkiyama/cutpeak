@@ -3,6 +3,7 @@ import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   saveLocal,
   loadLocal,
+  deleteLocalProject,
   putAsset,
   getAsset,
   readMeta,
@@ -48,6 +49,7 @@ class Directory {
     for (const [k] of this.files) yield [k, {}];
   }
   async removeEntry(name: string) {
+    if (this.dirs.delete(name)) return;
     this.files.delete(name);
   }
 }
@@ -119,6 +121,24 @@ describe('local durability', () => {
     expect(await (await getAsset(p.id, 'asset'))!.text()).toBe(
       'original-media-bytes',
     );
+  });
+  it('deletes a local project, assets, and its index entry', async () => {
+    const deleted = fixture();
+    const remaining = fixture();
+    await saveLocal(deleted);
+    await putAsset(deleted.project.id, 'asset', new File(['bytes'], 'a.bin'));
+    await saveLocal(remaining);
+
+    await deleteLocalProject(deleted.project.id);
+
+    expect(await loadLocal(deleted.project.id)).toBeNull();
+    expect(await getAsset(deleted.project.id, 'asset')).toBeNull();
+    expect(await readMeta('last-project')).toBe(remaining.project.id);
+    const projects = (await readMeta<{ id: string }[]>('projects')) || [];
+    expect(projects).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: remaining.project.id })]),
+    );
+    expect(projects.some((p) => p.id === deleted.project.id)).toBe(false);
   });
   it('lets the browser choose a destination for rendered files', async () => {
     const write = vi.fn(),

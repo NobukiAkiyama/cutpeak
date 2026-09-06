@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
-import { Plus, FolderOpen, Download, Film } from 'lucide-react';
+import { Plus, FolderOpen, Download, Film, Trash2 } from 'lucide-react';
 import { Modal, Choice, Field } from './controls';
 import {
   useEditor,
   newProject,
   openProject,
+  deleteProject,
   persistNow,
   notify,
 } from '../app/store';
@@ -36,6 +37,19 @@ export default function ProjectDialog({
       );
     } catch (e) {
       notify((e as Error).message);
+    }
+  }
+  async function remove(p: (typeof projects)[number]) {
+    const message =
+      p.id === project.id
+        ? `「${p.name}」をこの端末から削除します。現在開いているため、削除後は別のプロジェクトへ切り替えるか、新しい空のプロジェクトを作成します。Drive上のファイルは削除されません。`
+        : `「${p.name}」をこの端末から削除します。Drive上のファイルは削除されません。`;
+    if (!window.confirm(message)) return;
+    try {
+      await deleteProject(p.id);
+      notify(`「${p.name}」をこの端末から削除しました`);
+    } catch (e) {
+      notify(`プロジェクトを削除できませんでした: ${(e as Error).message}`);
     }
   }
   return (
@@ -111,33 +125,44 @@ export default function ProjectDialog({
           <h3>この端末のプロジェクト</h3>
           <div className="saved-projects">
             {projects.map((p) => (
-              <button
-                key={p.id}
-                disabled={p.id === project.id || !!busy}
-                onClick={async () => {
-                  try {
-                    await persistNow();
-                    const saved = await loadLocal(p.id);
-                    if (!saved) throw Error('プロジェクトが見つかりません');
-                    await openProject(saved);
-                    onClose();
-                  } catch (e) {
-                    notify((e as Error).message);
-                  }
-                }}
-              >
-                <span className="project-icon">
-                  <Film size={22} />
-                </span>
-                <span>
-                  <strong>{p.name}</strong>
-                  <small>
-                    {p.width} × {p.height} ·{' '}
-                    {new Date(p.updatedAt).toLocaleDateString('ja-JP')}
-                  </small>
-                </span>
-                {p.id === project.id && <small>編集中</small>}
-              </button>
+              <div key={p.id} className="saved-project-row">
+                <button
+                  className="project-open"
+                  disabled={p.id === project.id || !!busy}
+                  onClick={async () => {
+                    try {
+                      await persistNow();
+                      const saved = await loadLocal(p.id);
+                      if (!saved) throw Error('プロジェクトが見つかりません');
+                      await openProject(saved);
+                      onClose();
+                    } catch (e) {
+                      notify((e as Error).message);
+                    }
+                  }}
+                >
+                  <span className="project-icon">
+                    <Film size={22} />
+                  </span>
+                  <span>
+                    <strong>{p.name}</strong>
+                    <small>
+                      {p.width} × {p.height} ·{' '}
+                      {new Date(p.updatedAt).toLocaleDateString('ja-JP')}
+                    </small>
+                  </span>
+                  {p.id === project.id && <small>編集中</small>}
+                </button>
+                <button
+                  className="project-delete"
+                  disabled={!!busy}
+                  title="この端末から削除"
+                  aria-label={`${p.name}をこの端末から削除`}
+                  onClick={() => void remove(p)}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             ))}
           </div>
         </div>

@@ -17,6 +17,7 @@ import {
   saveLocal,
   loadLocal,
   readMeta,
+  deleteLocalProject,
   writeMeta,
   putAsset,
   getAsset,
@@ -354,6 +355,22 @@ export async function newProject(
   const e = new Editor(p);
   await openProject({ project: p, repository: e.repository });
   void requestPersistence();
+}
+export async function deleteProject(projectId: string) {
+  const current = useEditor.getState();
+  const remaining = current.projects.filter((p) => p.id !== projectId);
+  await deleteLocalProject(projectId);
+  if (projectId !== current.project.id) {
+    useEditor.setState({ projects: remaining });
+    return;
+  }
+  const next = remaining[0] && (await loadLocal(remaining[0].id));
+  if (next) await openProject(next);
+  else {
+    const project = makeProject();
+    const editor = new Editor(project);
+    await openProject({ project, repository: editor.repository });
+  }
 }
 export async function bootstrap() {
   if (booted) return;

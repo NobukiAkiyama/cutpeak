@@ -536,7 +536,8 @@ button:hover {
 .caption-list span {
   font-size: 14px;
 }
-.saved-projects > button {
+.saved-project-row .project-open,
+.saved-project-row .project-delete {
   background: #242027;
   border-radius: 12px;
 }

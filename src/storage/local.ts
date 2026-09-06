@@ -41,6 +41,16 @@ export async function writeMeta(key: string, value: unknown) {
     tx.onabort = () => reject(tx.error);
   });
 }
+export async function deleteMeta(key: string) {
+  const d = await db();
+  return new Promise<void>((resolve, reject) => {
+    const tx = d.transaction('metadata', 'readwrite');
+    tx.objectStore('metadata').delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
 const sessionFiles = new Map<string, File>();
 export let storageMode: 'opfs' | 'compatibility' = 'opfs';
 async function directory(projectId: string, folder: string) {
@@ -184,6 +194,27 @@ export async function loadLocal(
     return data;
   }
   return null;
+}
+export async function deleteLocalProject(projectId: string) {
+  try {
+    const root = await navigator.storage.getDirectory();
+    await root.removeEntry(projectId, { recursive: true });
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === 'NotFoundError'))
+      throw error;
+  }
+  for (const key of sessionFiles.keys())
+    if (key.startsWith(`${projectId}/`)) sessionFiles.delete(key);
+  await deleteMeta(`project:${projectId}`);
+  await deleteMeta(`state-location:${projectId}`);
+  await deleteMeta(`drive-sync:${projectId}`);
+  const index = (await readMeta<ProjectIndex[]>('projects')) || [];
+  const remaining = index.filter((p) => p.id !== projectId);
+  await writeMeta('projects', remaining);
+  if ((await readMeta<string>('last-project')) === projectId) {
+    if (remaining[0]) await writeMeta('last-project', remaining[0].id);
+    else await deleteMeta('last-project');
+  }
 }
 export async function requestPersistence() {
   return navigator.storage?.persist().catch(() => false) || false;

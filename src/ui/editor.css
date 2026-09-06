@@ -1675,15 +1675,31 @@ h3 {
   flex-direction: column;
   gap: 7px;
 }
-.saved-projects > button {
+.saved-project-row {
+  display: flex;
+  gap: 7px;
+}
+.saved-project-row .project-open {
+  flex: 1;
+  min-width: 0;
   text-align: left;
   justify-content: start;
   background: #2a3440;
   padding: 12px;
 }
-.saved-projects > button > span:nth-child(2) {
+.saved-project-row .project-open > span:nth-child(2) {
   flex: 1;
   min-width: 0;
+}
+.saved-project-row .project-delete {
+  flex: 0 0 44px;
+  padding: 10px;
+  color: #e5949f;
+  background: #2a3440;
+}
+.saved-project-row .project-delete:hover,
+.saved-project-row .project-delete:focus-visible {
+  background: #482934;
 }
 .saved-projects strong {
   display: block;
@@ -1698,7 +1714,7 @@ h3 {
   font-size: 12px;
   margin-top: 5px;
 }
-.saved-projects button:disabled {
+.saved-projects .project-open:disabled {
   opacity: 0.75;
   border-color: #627a49;
 }
