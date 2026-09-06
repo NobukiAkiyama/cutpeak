@@ -1,6 +1,13 @@
 interface FileSystemDirectoryHandle {
   entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
 }
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+interface Navigator {
+  standalone?: boolean;
+}
 interface Document {
   modelContext?: {
     registerTool(

@@ -1,1 +1,29 @@
-{"name":"Cutpeak 動画エディター","short_name":"Cutpeak","description":"ブラウザで動画を編集。端末内に自動保存。","lang":"ja","start_url":"/","scope":"/","display":"standalone","background_color":"#141619","theme_color":"#141619","icons":[{"src":"/favicon-v4.jpg","sizes":"2048x2048","type":"image/jpeg"}]}
+{
+  "id": "/",
+  "name": "Cutpeak 動画エディター",
+  "short_name": "Cutpeak",
+  "description": "動画、音声、字幕を編集し、端末内へ自動保存できます。",
+  "lang": "ja",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#101011",
+  "theme_color": "#101011",
+  "categories": ["video", "photo", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

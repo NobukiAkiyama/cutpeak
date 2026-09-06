@@ -18,6 +18,7 @@ import {
   Keyboard,
   WifiOff,
   HardDrive,
+  MonitorDown,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEditor, bootstrap, api, persistNow, notify } from '../app/store';
@@ -55,7 +56,13 @@ export default function App() {
       | 'shortcuts'
     >(null),
     [online, setOnline] = useState(navigator.onLine),
-    [tablet, setTablet] = useState(window.innerWidth <= 850);
+    [tablet, setTablet] = useState(window.innerWidth <= 850),
+    [installPrompt, setInstallPrompt] =
+      useState<BeforeInstallPromptEvent | null>(null),
+    [installed, setInstalled] = useState(
+      window.matchMedia('(display-mode: standalone)').matches ||
+        navigator.standalone === true,
+    );
   useEffect(() => {
     void bootstrap();
     void completeDriveRedirect()
@@ -67,17 +74,37 @@ export default function App() {
       unregister = registerWebTools();
     const network = () => setOnline(navigator.onLine);
     const resize = () => setTablet(window.innerWidth <= 850);
+    const offerInstall = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const markInstalled = () => {
+      setInstallPrompt(null);
+      setInstalled(true);
+      notify('Cutpeak をアプリとしてインストールしました');
+    };
     window.addEventListener('online', network);
     window.addEventListener('offline', network);
     window.addEventListener('resize', resize);
+    window.addEventListener('beforeinstallprompt', offerInstall);
+    window.addEventListener('appinstalled', markInstalled);
     return () => {
       stop();
       unregister();
       window.removeEventListener('online', network);
       window.removeEventListener('offline', network);
       window.removeEventListener('resize', resize);
+      window.removeEventListener('beforeinstallprompt', offerInstall);
+      window.removeEventListener('appinstalled', markInstalled);
     };
   }, []);
+  const installApp = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    setInstallPrompt(null);
+    if (choice.outcome === 'accepted') setInstalled(true);
+  };
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -385,6 +412,22 @@ export default function App() {
         >
           保存領域の保持を要求
         </button>
+        <div className="section-label">アプリ</div>
+        {installed ? (
+          <div className="export-detail">
+            <span>インストール状態</span>
+            <strong>インストール済み</strong>
+          </div>
+        ) : installPrompt ? (
+          <button className="secondary full" onClick={() => void installApp()}>
+            <MonitorDown size={17} />
+            この端末にインストール
+          </button>
+        ) : (
+          <p className="panel-help">
+            ブラウザの共有またはメニューから「ホーム画面に追加」か「アプリをインストール」を選べます。
+          </p>
+        )}
         <div className="section-label">ブラウザ診断</div>
         <div className="diagnostics">
           {Object.entries({
