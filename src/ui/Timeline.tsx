@@ -350,7 +350,7 @@ export default function Timeline() {
           snap(c.startFrame + delta),
         );
         const min =
-          asset && c.type !== 'image'
+          asset && c.type !== 'image' && asset.videoCodec !== 'gif'
             ? c.startFrame - Math.floor((c.sourceInUs / 1e6) * fps(project))
             : 0;
         start = Math.max(min, start);
@@ -369,7 +369,7 @@ export default function Timeline() {
           c.startFrame + 1,
           snap(c.startFrame + c.durationFrames + delta),
         );
-        if (asset && c.type !== 'image')
+        if (asset && c.type !== 'image' && asset.videoCodec !== 'gif')
           end = Math.min(
             end,
             c.startFrame +

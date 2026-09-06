@@ -91,6 +91,20 @@ describe('non-destructive commands', () => {
     ).toThrow('素材');
     expect(e.project).toEqual(before);
   });
+  it('allows a GIF clip to extend beyond its intrinsic animation length', () => {
+    const { p, c, asset } = fixture();
+    asset.videoCodec = 'gif';
+    c.type = 'video';
+    expect(() =>
+      applyCommand(p, {
+        type: 'clip.trim',
+        clipId: c.id,
+        startFrame: 0,
+        durationFrames: 600,
+        sourceInUs: 0,
+      }),
+    ).not.toThrow();
+  });
   it('respects track locks for destructive changes', () => {
     const { p, c } = fixture();
     p.tracks[1].locked = true;

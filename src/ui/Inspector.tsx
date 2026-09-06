@@ -360,7 +360,7 @@ export default function Inspector() {
                 value={c.durationFrames}
                 min={1}
                 max={
-                  asset && c.type !== 'image'
+                  asset && c.type !== 'image' && asset.videoCodec !== 'gif'
                     ? Math.floor(
                         ((asset.durationUs - c.sourceInUs) / 1e6) *
                           fps(project),

@@ -53,12 +53,76 @@ interface MediaEntry {
   input?: Input;
   video?: InputVideoTrack | null;
   audio?: InputAudioTrack | null;
+  gif?: GifEntry;
   canvases: Map<number, CanvasSink>;
   audioSink?: AudioSampleSink;
   bitmap?: ImageBitmap;
   firstTimestamp: number;
   duration: number;
 }
+interface GifFrame {
+  startUs: number;
+  durationUs: number;
+}
+interface GifEntry {
+  decoder: ImageDecoder;
+  frames: GifFrame[];
+  durationUs: number;
+  width: number;
+  height: number;
+}
+
+async function decodeGif(file: File): Promise<GifEntry> {
+  const decoder = new ImageDecoder({
+    data: await file.arrayBuffer(),
+    type: 'image/gif',
+    preferAnimation: true,
+  });
+  try {
+    await decoder.tracks.ready;
+    const track = decoder.tracks.selectedTrack;
+    if (!track || track.frameCount < 1)
+      throw Error('GIFのフレームを読み込めません');
+    const frames: GifFrame[] = [];
+    let cursor = 0,
+      width = 0,
+      height = 0;
+    for (let frameIndex = 0; frameIndex < track.frameCount; frameIndex++) {
+      const decoded = await decoder.decode({
+        frameIndex,
+        completeFramesOnly: true,
+      });
+      const image = decoded.image;
+      try {
+        const startUs = Number.isFinite(image.timestamp)
+          ? Math.max(cursor, image.timestamp)
+          : cursor;
+        const imageDuration = image.duration ?? 0;
+        const durationUs =
+          Number.isFinite(imageDuration) && imageDuration > 0
+            ? imageDuration
+            : 100_000;
+        frames.push({ startUs, durationUs });
+        cursor = startUs + durationUs;
+        width = image.displayWidth || width;
+        height = image.displayHeight || height;
+      } finally {
+        image.close();
+      }
+    }
+    return {
+      decoder,
+      frames,
+      durationUs: frames.length > 1 ? cursor : 5_000_000,
+      width,
+      height,
+    };
+  } catch (error) {
+    decoder.close();
+    throw error;
+  }
+}
+
 interface FrameReader {
   iterator: AsyncGenerator<WrappedCanvas, void, unknown>;
   current?: WrappedCanvas;
@@ -77,8 +141,23 @@ export class MediaEngine {
   private chunks = new Lru<Float32Array[]>(48, () => {});
   async register(assetId: string, file: File) {
     this.remove(assetId);
+    const isGif = file.type === 'image/gif' || /\.gif$/i.test(file.name);
+    if (isGif && typeof ImageDecoder !== 'undefined') {
+      try {
+        const gif = await decodeGif(file);
+        this.entries.set(assetId, {
+          file,
+          gif,
+          canvases: new Map(),
+          firstTimestamp: 0,
+          duration: gif.durationUs / 1e6,
+        });
+        return;
+      } catch {}
+    }
     const isImage =
-      file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name);
+      file.type.startsWith('image/') ||
+      /\.(png|jpe?g|webp|gif)$/i.test(file.name);
     if (isImage) {
       const bitmap = await createImageBitmap(file);
       this.entries.set(assetId, {
@@ -155,8 +234,13 @@ export class MediaEngine {
         | OffscreenCanvasRenderingContext2D;
     ctx.fillStyle = '#111318';
     ctx.fillRect(0, 0, 240, 135);
-    const width = e.bitmap?.width || (await e.video?.getDisplayWidth()) || 0,
-      height = e.bitmap?.height || (await e.video?.getDisplayHeight()) || 0;
+    const width =
+        e.bitmap?.width || e.gif?.width || (await e.video?.getDisplayWidth()) || 0,
+      height =
+        e.bitmap?.height ||
+        e.gif?.height ||
+        (await e.video?.getDisplayHeight()) ||
+        0;
     if (e.bitmap) {
       const r = Math.min(240 / width, 135 / height);
       ctx.drawImage(
@@ -166,7 +250,7 @@ export class MediaEngine {
         width * r,
         height * r,
       );
-    } else if (e.video) {
+    } else if (e.gif || e.video) {
       const b = await this.frame(
         assetId,
         Math.round(Math.min(0.2, e.duration / 4) * 1e6),
@@ -185,7 +269,7 @@ export class MediaEngine {
       }
     }
     let thumbnail: string | undefined;
-    if (e.bitmap || e.video) {
+    if (e.bitmap || e.gif || e.video) {
       const blob =
         'convertToBlob' in thumb
           ? await thumb.convertToBlob({ type: 'image/webp', quality: 0.7 })
@@ -205,15 +289,17 @@ export class MediaEngine {
     return {
       id: assetId,
       name: e.file.name,
-      kind: e.bitmap ? 'image' : e.video ? 'video' : 'audio',
+      // GIFs behave like still images at the clip level: users can extend
+      // them freely, while frame() loops the animation over the clip.
+      kind: e.bitmap || e.gif ? 'image' : e.video ? 'video' : 'audio',
       mime: e.file.type,
       size: e.file.size,
-      durationUs: Math.round(e.duration * 1e6),
+      durationUs: e.gif?.durationUs || Math.round(e.duration * 1e6),
       firstTimestampUs: Math.round(e.firstTimestamp * 1e6),
       width,
       height,
       hasAudio: !!e.audio,
-      videoCodec: e.video ? String(await e.video.getCodec()) : undefined,
+      videoCodec: e.gif ? 'gif' : e.video ? String(await e.video.getCodec()) : undefined,
       audioCodec: e.audio ? String(await e.audio.getCodec()) : undefined,
       thumbnail,
     };
@@ -263,6 +349,36 @@ export class MediaEngine {
         ),
         resizeQuality: 'high',
       });
+    }
+    if (e.gif) {
+      const w = Math.max(2, Math.min(Math.round(width), e.gif.width));
+      const key = `${assetId}:${Math.round(sourceUs)}:${w}`;
+      const cached = this.frames.get(key);
+      if (cached) return createImageBitmap(cached);
+      const localUs =
+        e.gif.durationUs > 0
+          ? Math.max(0, sourceUs) % e.gif.durationUs
+          : 0;
+      let frameIndex = e.gif.frames.length - 1;
+      for (let i = 0; i < e.gif.frames.length; i++) {
+        const frame = e.gif.frames[i];
+        if (localUs < frame.startUs + frame.durationUs) {
+          frameIndex = i;
+          break;
+        }
+      }
+      const decoded = await e.gif.decoder.decode({ frameIndex });
+      try {
+        const bitmap = await createImageBitmap(decoded.image, {
+          resizeWidth: w,
+          resizeHeight: Math.max(1, Math.round((e.gif.height * w) / e.gif.width)),
+          resizeQuality: 'high',
+        });
+        this.frames.set(key, bitmap);
+        return createImageBitmap(bitmap);
+      } finally {
+        decoded.image.close();
+      }
     }
     if (!e.video) return null;
     const w = Math.max(
@@ -459,6 +575,7 @@ export class MediaEngine {
     }
     const e = this.entries.get(assetId);
     e?.input?.dispose();
+    e?.gif?.decoder.close();
     e?.bitmap?.close();
     this.entries.delete(assetId);
     this.frames.clear();

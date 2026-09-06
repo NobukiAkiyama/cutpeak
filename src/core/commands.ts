@@ -309,6 +309,7 @@ export function applyCommand(
       const asset = p.assets.find((a) => a.id === c.assetId);
       if (
         asset &&
+        asset.videoCodec !== 'gif' &&
         c.sourceInUs + frameToUs(c.durationFrames, p) >
           asset.durationUs + frameToUs(1, p)
       )

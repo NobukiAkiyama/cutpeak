@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { MediaEngine, Lru } from '../src/media/engine';
 import { makeProject, makeClip, type Asset } from '../src/core/model';
 function wav(rate = 48000, seconds = 1) {
@@ -30,6 +30,55 @@ function wav(rate = 48000, seconds = 1) {
   return new File([buffer], 'tone.wav', { type: 'audio/wav' });
 }
 describe('media decoding and audio mixing', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('decodes animated GIF frames and follows their timing', async () => {
+    const decodedFrames = [
+      {
+        timestamp: 0,
+        duration: 500_000,
+        displayWidth: 2,
+        displayHeight: 1,
+        close: vi.fn(),
+      },
+      {
+        timestamp: 500_000,
+        duration: 500_000,
+        displayWidth: 2,
+        displayHeight: 1,
+        close: vi.fn(),
+      },
+    ];
+    const decode = vi.fn(async ({ frameIndex }: { frameIndex: number }) => ({
+      image: decodedFrames[frameIndex],
+    }));
+    class FakeImageDecoder {
+      tracks = {
+        ready: Promise.resolve(),
+        selectedTrack: { frameCount: 2 },
+      };
+      decode = decode;
+      close = vi.fn();
+      constructor(_init: ImageDecoderInit) {}
+    }
+    vi.stubGlobal('ImageDecoder', FakeImageDecoder);
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => ({ width: 2, height: 1, close: vi.fn() })),
+    );
+
+    const e = new MediaEngine();
+    await e.register(
+      'gif',
+      new File(['gif'], 'anim.gif', { type: 'image/gif' }),
+    );
+    await e.frame('gif', 600_000, 2);
+    expect(decode.mock.calls.at(-1)?.[0]).toMatchObject({ frameIndex: 1 });
+    await e.frame('gif', 1_100_000, 2);
+    expect(decode.mock.calls.at(-1)?.[0]).toMatchObject({ frameIndex: 0 });
+    e.dispose();
+  });
+
   it('demuxes and decodes PCM WAV without WASM or AudioDecoder', async () => {
     const e = new MediaEngine();
     await e.register('tone', wav());

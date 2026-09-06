@@ -85,7 +85,7 @@ export default function Library() {
         ref={input}
         type="file"
         multiple
-        accept="video/*,audio/*,image/png,image/jpeg,image/webp,.mov,.mkv,.ogg,.aac,.opus"
+        accept="video/*,audio/*,image/png,image/jpeg,image/gif,image/webp,.mov,.mkv,.ogg,.aac,.opus"
         onChange={(e) => {
           void importFiles(Array.from(e.target.files || []), {
             relinkId: relink.current,
