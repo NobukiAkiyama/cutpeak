@@ -14,6 +14,7 @@ import {
   disconnect,
   normalizeDriveSaveName,
   prepareGoogle,
+  restoreConnection,
   pickProject,
   pullDrive,
   type DriveConfig,
@@ -41,6 +42,7 @@ export default function DriveDialog({
     [status, setStatus] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
+    [restoring, setRestoring] = useState(false),
     [saveName, setSaveName] = useState(''),
     [record, setRecord] = useState<SyncRecord | undefined>(undefined);
   const normalizedSaveName = normalizeDriveSaveName(saveName),
@@ -48,6 +50,7 @@ export default function DriveDialog({
       !!normalizedSaveName && normalizedSaveName !== '無題のプロジェクト';
   useEffect(() => {
     if (!open) return;
+    let active = true;
     setConnected(connected());
     void readMeta<SyncRecord>(`drive-sync:${project.id}`).then((r) => {
       setRecord(r);
@@ -57,7 +60,20 @@ export default function DriveDialog({
           (project.name === '無題のプロジェクト' ? '' : project.name),
       );
     });
-    if (available && navigator.onLine) void prepareGoogle().catch(() => {});
+    if (available && navigator.onLine) {
+      setRestoring(true);
+      void Promise.all([prepareGoogle(), restoreConnection()])
+        .then(([, restored]) => {
+          if (active) setConnected(restored);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (active) setRestoring(false);
+        });
+    }
+    return () => {
+      active = false;
+    };
   }, [open, project.id, project.name, available]);
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -108,7 +124,7 @@ export default function DriveDialog({
       {!isConnected ? (
         <button
           className="primary full"
-          disabled={busy || !available}
+          disabled={busy || restoring || !available}
           onClick={() =>
             void run(async () => {
               await connect(config);
@@ -118,7 +134,11 @@ export default function DriveDialog({
           }
         >
           <Link2 size={16} />
-          {busy ? '接続中…' : 'Google Drive と連携'}
+          {restoring
+            ? '接続を確認中…'
+            : busy
+              ? '接続中…'
+              : 'Google Drive と連携'}
         </button>
       ) : (
         <>
@@ -213,10 +233,12 @@ export default function DriveDialog({
           <button
             className="text-button full"
             disabled={busy}
-            onClick={() => {
-              disconnect();
-              setConnected(false);
-            }}
+            onClick={() =>
+              void run(async () => {
+                await disconnect();
+                setConnected(false);
+              })
+            }
           >
             <LogOut size={15} />
             接続を解除

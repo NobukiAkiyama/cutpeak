@@ -63,7 +63,7 @@ npm start        # 本番ビルドのローカル確認（既定4173）
 
 [運営者向けの設定手順](docs/GOOGLE_DRIVE.md) を参照してください。Google Cloud の設定値は `.env.example` にある Vite 変数を使ってビルド時に登録します。設定後、利用者は画面の「Google Drive と連携」からGoogleアカウントを選ぶだけで接続できます。
 
-アクセストークンはメモリーだけに保持します。`drive.file` スコープを使用し、Google Identity Services、Google Picker、Drive REST API とブラウザから直接通信します。
+アクセストークンはメモリーだけに保持します。再接続用の refresh token はCloudflare Workerが暗号化してD1へ保存し、ブラウザにはHttpOnlyのセッションCookieだけを保存します。`drive.file` スコープを使用し、Google Identity Services、Google Picker、Drive REST API と通信します。
 
 同期はアプリが開いていて、オンラインかつ認証が有効な間に行います。失敗したキューと再開可能アップロードのセッションを IndexedDB に残します。同期競合を検出した場合は元のデータを上書きせず別案を追加します。更新時は ETag / If-Match を要求し、サーバーが検証情報を返さない場合は既存ファイルを書き換えません。
 
@@ -76,6 +76,7 @@ src/media/      Mediabunny の入力、キャッシュ、フレーム、音声�
 src/render/     共通シーン合成、WebGL2、Canvas2D
 src/audio/      AudioContext を基準とした再生、AudioWorklet の出力
 src/workers/    メディア、レンダリング、書き出し用 Worker
+worker/         Google Drive認証用 Cloudflare Worker
 src/storage/    OPFS、IndexedDB、Drive、Google SDK 型定義
 src/sync/       同期キューと競合時の分岐
 src/ui/         プレビュー、タイムライン、字幕、インスペクター、各ダイアログ

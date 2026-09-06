@@ -9,7 +9,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build && node scripts/build-sw.mjs",
     "start": "vite preview --host 127.0.0.1",
-    "lint": "oxlint src tests vite.config.ts",
+    "lint": "oxlint src worker tests vite.config.ts",
     "format": "oxfmt",
     "test": "vitest run"
   },

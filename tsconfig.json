@@ -29,6 +29,8 @@
   },
   "include": [
     "src",
+    "worker",
+    "worker-configuration.d.ts",
     "components",
     "lib",
     "hooks",

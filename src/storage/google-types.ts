@@ -7,6 +7,15 @@ export interface TokenResponse {
 export interface TokenClient {
   requestAccessToken(options?: { prompt?: string }): void;
 }
+export interface CodeResponse {
+  code?: string;
+  scope?: string;
+  error?: string;
+  error_description?: string;
+}
+export interface CodeClient {
+  requestCode(): void;
+}
 interface PickerView {
   setMimeTypes(value: string): PickerView;
   setIncludeFolders(value: boolean): PickerView;
@@ -29,6 +38,14 @@ interface PickerBuilder {
 export interface GoogleSdk {
   accounts: {
     oauth2: {
+      initCodeClient(options: {
+        client_id: string;
+        scope: string;
+        ux_mode: 'popup';
+        select_account?: boolean;
+        callback: (response: CodeResponse) => void;
+        error_callback: (error: { type: string; message?: string }) => void;
+      }): CodeClient;
       initTokenClient(options: {
         client_id: string;
         scope: string;

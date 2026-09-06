@@ -1,5 +1,5 @@
 import { serializePack, parsePack } from '../core/pack';
-import type { TokenClient } from './google-types';
+import type { CodeClient } from './google-types';
 import { type Project, type Asset } from '../core/model';
 import {
   type Repository,
@@ -49,14 +49,46 @@ interface DriveFile {
 }
 let accessToken = '',
   expires = 0;
-let client: TokenClient;
+let client: CodeClient;
 let scriptPromise: Promise<void> | undefined;
 const scope = 'https://www.googleapis.com/auth/drive.file';
 export function connected() {
   return !!accessToken && Date.now() < expires;
 }
-export function disconnect() {
-  if (accessToken) window.google?.accounts.oauth2.revoke(accessToken, () => {});
+function applyAccessToken(value: unknown) {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('access_token' in value) ||
+    typeof value.access_token !== 'string' ||
+    !('expires_in' in value) ||
+    !['number', 'string'].includes(typeof value.expires_in)
+  )
+    throw Error('Google Drive の認証応答が正しくありません');
+  accessToken = value.access_token;
+  expires = Date.now() + (Number(value.expires_in) - 60) * 1000;
+}
+export async function restoreConnection() {
+  if (connected()) return true;
+  try {
+    const response = await fetch('/api/drive-auth/token', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return false;
+    applyAccessToken(await response.json());
+    return connected();
+  } catch {
+    return false;
+  }
+}
+export async function disconnect() {
+  const response = await fetch('/api/drive-auth/logout', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XmlHttpRequest' },
+  });
+  if (!response.ok) throw Error('Google Drive の接続を解除できませんでした');
   accessToken = '';
   expires = 0;
 }
@@ -92,17 +124,46 @@ export async function connect(config: DriveConfig) {
     );
   await prepareGoogle();
   await new Promise<void>((resolve, reject) => {
-    client = window.google!.accounts.oauth2.initTokenClient({
+    client = window.google!.accounts.oauth2.initCodeClient({
       client_id: config.clientId,
       scope,
-      callback: (r) => {
+      ux_mode: 'popup',
+      select_account: false,
+      callback: async (r) => {
         if (r.error) {
           reject(Error(r.error_description || r.error));
           return;
         }
-        accessToken = r.access_token;
-        expires = Date.now() + (Number(r.expires_in) - 60) * 1000;
-        resolve();
+        if (!r.code) {
+          reject(Error('Google から認証コードを受け取れませんでした'));
+          return;
+        }
+        try {
+          const response = await fetch('/api/drive-auth/exchange', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XmlHttpRequest',
+            },
+            body: JSON.stringify({ code: r.code }),
+          });
+          const result: unknown = await response.json();
+          if (!response.ok) {
+            const detail =
+              typeof result === 'object' &&
+              result !== null &&
+              'error' in result &&
+              typeof result.error === 'string'
+                ? result.error
+                : 'Google Drive の認証に失敗しました';
+            throw Error(detail);
+          }
+          applyAccessToken(result);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
       },
       error_callback: (e) =>
         reject(
@@ -113,11 +174,11 @@ export async function connect(config: DriveConfig) {
           ),
         ),
     });
-    client.requestAccessToken();
+    client.requestCode();
   });
 }
-async function request(url: string, init: RequestInit = {}) {
-  if (!connected())
+async function request(url: string, init: RequestInit = {}, retried = false) {
+  if (!connected() && !(await restoreConnection()))
     throw Error(
       'Google Drive との接続が切れました。再接続すると同期を再開できます。',
     );
@@ -128,6 +189,9 @@ async function request(url: string, init: RequestInit = {}) {
   const response = await fetch(url, { ...init, headers });
   if (response.status === 401) {
     accessToken = '';
+    expires = 0;
+    if (!retried && (await restoreConnection()))
+      return request(url, init, true);
     throw Error('Google Drive の再接続が必要です');
   }
   if (response.status === 412)
@@ -135,7 +199,17 @@ async function request(url: string, init: RequestInit = {}) {
   if (!response.ok && response.status !== 308) {
     let detail = '';
     try {
-      detail = (await response.json()).error?.message || '';
+      const body: unknown = await response.json();
+      if (
+        typeof body === 'object' &&
+        body !== null &&
+        'error' in body &&
+        typeof body.error === 'object' &&
+        body.error !== null &&
+        'message' in body.error &&
+        typeof body.error.message === 'string'
+      )
+        detail = body.error.message;
     } catch {}
     throw Error(`Drive ${response.status}: ${detail || response.statusText}`);
   }

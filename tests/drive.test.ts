@@ -2,8 +2,11 @@ import 'fake-indexeddb/auto';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import {
   connect,
+  connected,
+  disconnect,
   normalizeDriveSaveName,
   pushDrive,
+  restoreConnection,
   upload,
   type DriveConfig,
   type SyncRecord,
@@ -29,14 +32,27 @@ beforeEach(async () => {
     google: {
       accounts: {
         oauth2: {
-          initTokenClient: (c: { callback: (r: unknown) => void }) => ({
-            requestAccessToken: () =>
-              c.callback({ access_token: 'test-token-only', expires_in: 3600 }),
+          initCodeClient: (c: { callback: (r: unknown) => void }) => ({
+            requestCode: () => c.callback({ code: 'test-code' }),
           }),
         },
       },
     },
   });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: RequestInfo | URL) => {
+      const requestUrl =
+        typeof url === 'string'
+          ? url
+          : url instanceof Request
+            ? url.url
+            : url.href;
+      if (requestUrl === '/api/drive-auth/exchange')
+        return response({ access_token: 'test-token-only', expires_in: 3600 });
+      throw Error(`Unexpected authentication request: ${requestUrl}`);
+    }),
+  );
   await connect(config);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -118,6 +134,31 @@ async function syncRecord(p: string, remote: Repository) {
   } satisfies SyncRecord);
 }
 describe('Drive data preservation', () => {
+  it('restores a Drive access token from the server session', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: RequestInfo | URL) => {
+        const requestUrl =
+          typeof url === 'string'
+            ? url
+            : url instanceof Request
+              ? url.url
+              : url.href;
+        if (requestUrl === '/api/drive-auth/logout') return response({});
+        if (requestUrl === '/api/drive-auth/token')
+          return response({
+            access_token: 'restored-token',
+            expires_in: 3600,
+          });
+        throw Error(`Unexpected authentication request: ${requestUrl}`);
+      }),
+    );
+    await disconnect();
+    expect(connected()).toBe(false);
+    await expect(restoreConnection()).resolves.toBe(true);
+    expect(connected()).toBe(true);
+  });
+
   it('requires and normalizes a name before creating a Drive directory', async () => {
     const { e } = fixture();
     const fetch = vi.fn();
