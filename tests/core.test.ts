@@ -39,6 +39,27 @@ function fixture() {
   return { p, c, asset, e: new Editor(p) };
 }
 describe('non-destructive commands', () => {
+  it('deletes an unlocked track and keeps one track available', () => {
+    const p = makeProject();
+    const result = applyCommand(p, {
+      type: 'track.delete',
+      trackId: p.tracks[0].id,
+    })!;
+    expect(result.project.tracks).toHaveLength(2);
+    expect(result.operation.description).toBe('トラックを削除');
+    const last = applyCommand(result.project, {
+      type: 'track.delete',
+      trackId: result.project.tracks[0].id,
+    })!;
+    expect(last.project.tracks).toHaveLength(1);
+    expect(() =>
+      applyCommand(last.project, {
+        type: 'track.delete',
+        trackId: last.project.tracks[0].id,
+      }),
+    ).toThrow('最後のトラックは削除できません');
+  });
+
   it('splits source time without modifying the input or bytes', () => {
     const { p, c } = fixture();
     const before = clone(p);

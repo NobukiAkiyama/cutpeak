@@ -1246,6 +1246,7 @@ h3 {
   background: #20262e;
   border-right: 1px solid #38424e;
   padding: 8px 10px;
+  cursor: pointer;
 }
 .track-title {
   display: flex;
@@ -1253,6 +1254,7 @@ h3 {
   color: #a7b7cb;
   font-size: 12px;
   height: 22px;
+  align-items: center;
 }
 .track-title > span {
   flex: 1;

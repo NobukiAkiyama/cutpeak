@@ -26,6 +26,7 @@ export type Command =
       patch: Partial<Pick<Track, 'name' | 'locked' | 'hidden' | 'muted'>>;
     }
   | { type: 'track.move'; trackId: string; index: number }
+  | { type: 'track.delete'; trackId: string }
   | { type: 'clip.add'; trackId: string; clip: Clip }
   | {
       type: 'clip.update';
@@ -159,6 +160,14 @@ export function applyCommand(
     p.tracks.splice(Math.max(0, Math.min(cmd.index, p.tracks.length)), 0, t);
     target = t.name;
     description = 'トラックの順序を変更';
+  } else if (cmd.type === 'track.delete') {
+    const i = p.tracks.findIndex((t) => t.id === cmd.trackId);
+    if (i < 0) throw Error('トラックが見つかりません');
+    if (p.tracks.length <= 1) throw Error('最後のトラックは削除できません');
+    if (p.tracks[i].locked) throw Error('トラックがロックされています');
+    const [t] = p.tracks.splice(i, 1);
+    target = t.name;
+    description = 'トラックを削除';
   } else if (cmd.type === 'caption.style') {
     const t = p.tracks.find((t) => t.id === cmd.trackId);
     if (!t || t.locked) throw Error('字幕トラックを編集できません');

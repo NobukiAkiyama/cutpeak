@@ -123,9 +123,15 @@ export default function Timeline() {
     x: number;
     y: number;
   } | null>(null);
+  const [trackActions, setTrackActions] = useState<{
+    id: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [touchMove, setTouchMove] = useState<string | null>(null);
   const pressCleanup = useRef<(() => void) | null>(null);
   const actionMenu = useRef<HTMLDivElement>(null);
+  const trackMenu = useRef<HTMLDivElement>(null);
   useEffect(() => () => pressCleanup.current?.(), []);
   useEffect(() => {
     if (!actions) return;
@@ -135,7 +141,25 @@ export default function Timeline() {
         ?.focus(),
     );
   }, [actions]);
+  useEffect(() => {
+    if (!trackActions) return;
+    requestAnimationFrame(() =>
+      trackMenu.current
+        ?.querySelector<HTMLButtonElement>('button:not(:disabled)')
+        ?.focus(),
+    );
+  }, [trackActions]);
   const actionInfo = actions ? findClip(project, actions.id) : undefined;
+  const trackActionInfo = trackActions
+    ? project.tracks.find((t) => t.id === trackActions.id)
+    : undefined;
+  const trackActionIndex = trackActions
+    ? project.tracks.findIndex((t) => t.id === trackActions.id)
+    : -1;
+  const trackActionDisplayName =
+    trackActionIndex >= 0
+      ? `トラック ${trackActionIndex + 1}`
+      : trackActionInfo?.name || 'トラック';
   const canSplit =
     !!actionInfo &&
     !actionInfo.track.locked &&
@@ -162,6 +186,22 @@ export default function Timeline() {
       frame: target,
       x: Math.max(12, Math.min(point.x, window.innerWidth - 292)),
       y: Math.max(12, Math.min(point.y, window.innerHeight - 326)),
+    });
+  }
+  function openTrackActions(
+    t: Track,
+    point: { x: number; y: number } = {
+      x: window.innerWidth / 2 - 136,
+      y: window.innerHeight / 2 - 100,
+    },
+  ) {
+    pressCleanup.current?.();
+    setTouchMove(null);
+    setActions(null);
+    setTrackActions({
+      id: t.id,
+      x: Math.max(12, Math.min(point.x - 292, window.innerWidth - 292)),
+      y: Math.max(12, Math.min(point.y, window.innerHeight - 180)),
     });
   }
   function pressClip(e: ReactPointerEvent, c: Clip, t: Track) {
@@ -478,7 +518,29 @@ export default function Timeline() {
                 className={`track-row ${t.hidden ? 'track-hidden' : ''} ${t.locked ? 'track-locked' : ''}`}
                 data-track-id={t.id}
               >
-                <div className="track-header">
+                <div
+                  className="track-header"
+                  role="button"
+                  tabIndex={0}
+                  aria-haspopup="menu"
+                  aria-label={`${displayName}の操作を開く`}
+                  onContextMenu={(e) => {
+                    if ((e.target as HTMLElement).closest('button')) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openTrackActions(t, { x: e.clientX, y: e.clientY });
+                  }}
+                  onKeyDown={(e) => {
+                    if ((e.target as HTMLElement).closest('button')) return;
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    e.preventDefault();
+                    const bounds = e.currentTarget.getBoundingClientRect();
+                    openTrackActions(t, {
+                      x: bounds.left + bounds.width / 2,
+                      y: bounds.top + bounds.height / 2,
+                    });
+                  }}
+                >
                   <div className="track-title">
                     <Layers3 size={14} />
                     <span title={displayName}>{displayName}</span>
@@ -862,6 +924,72 @@ export default function Timeline() {
             >
               <SlidersHorizontal size={17} />
               <span>詳細を編集</span>
+            </button>
+          </div>
+        </div>
+      )}
+      {trackActions && trackActionInfo && (
+        <div
+          className="clip-context-layer"
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) setTrackActions(null);
+          }}
+        >
+          <div
+            ref={trackMenu}
+            className="clip-context-menu"
+            role="menu"
+            tabIndex={-1}
+            aria-label={`${trackActionDisplayName}の操作`}
+            style={{ left: trackActions.x, top: trackActions.y }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setTrackActions(null);
+                return;
+              }
+              if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+              e.preventDefault();
+              const items = Array.from(
+                e.currentTarget.querySelectorAll<HTMLButtonElement>(
+                  'button:not(:disabled)',
+                ),
+              );
+              const current = items.indexOf(
+                document.activeElement as HTMLButtonElement,
+              );
+              const direction = e.key === 'ArrowDown' ? 1 : -1;
+              items[
+                (current + direction + items.length) % items.length
+              ]?.focus();
+            }}
+          >
+            <div className="clip-context-heading">
+              <strong>{trackActionDisplayName}</strong>
+              <span>トラック操作</span>
+            </div>
+            {trackActionInfo.locked && (
+              <p className="clip-context-warning">トラックはロック中です</p>
+            )}
+            {project.tracks.length <= 1 && (
+              <p className="clip-context-warning">
+                最後のトラックは削除できません
+              </p>
+            )}
+            <button
+              role="menuitem"
+              className="destructive-action"
+              disabled={trackActionInfo.locked || project.tracks.length <= 1}
+              onClick={() => {
+                api.execute({
+                  type: 'track.delete',
+                  trackId: trackActions.id,
+                });
+                setTrackActions(null);
+              }}
+            >
+              <Trash2 size={17} />
+              <span>トラックを削除</span>
             </button>
           </div>
         </div>
