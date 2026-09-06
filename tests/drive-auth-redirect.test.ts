@@ -79,4 +79,49 @@ describe('Drive redirect authentication', () => {
     expect(connected()).toBe(true);
     expect(replaceState).toHaveBeenCalledWith({}, '', '/');
   });
+
+  it('resolves the selected Safari folder to its project.json', async () => {
+    const values = new Map<string, string>([
+      ['cutpeak:drive-oauth-state', 'state'],
+    ]);
+    const replaceState = vi.fn();
+    const location = {
+      origin: 'https://cutpeak.example',
+      href: 'https://cutpeak.example/?code=code',
+      search: '?code=code&picked_file_ids=folder&state=state',
+    };
+    vi.stubGlobal('navigator', { onLine: true });
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    });
+    vi.stubGlobal('window', {
+      location,
+      history: { replaceState },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: RequestInfo | URL) => {
+        const s = url instanceof Request ? url.url : url.toString();
+        if (s === '/api/drive-auth/exchange')
+          return new Response(
+            JSON.stringify({ access_token: 'access-token', expires_in: 3600 }),
+            { headers: { 'Content-Type': 'application/json' } },
+          );
+        if (s.includes('/files?q='))
+          return new Response(
+            JSON.stringify({
+              files: [{ id: 'project', name: 'project.json' }],
+            }),
+            { headers: { 'Content-Type': 'application/json' } },
+          );
+        throw Error(`Unexpected request: ${s}`);
+      }),
+    );
+
+    const { completeDriveRedirect } = await import('../src/storage/drive');
+    await expect(completeDriveRedirect()).resolves.toBe(true);
+    expect(values.get('cutpeak:drive-picker-result')).toBe('project');
+  });
 });

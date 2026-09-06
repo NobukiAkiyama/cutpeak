@@ -222,7 +222,11 @@ export function completeDriveRedirect() {
             'Google Drive の接続をキャンセルしました',
         );
       await exchangeAuthorizationCode(code!);
-      if (pickedFileId) sessionStorage.setItem(pickerResultKey, pickedFileId);
+      if (pickedFileId)
+        sessionStorage.setItem(
+          pickerResultKey,
+          await projectFileInFolder(pickedFileId),
+        );
       return true;
     } finally {
       clearOAuthResponse();
@@ -370,6 +374,17 @@ async function repositoryContent(fileId: string) {
     );
   }
 }
+
+async function projectFileInFolder(folderId: string) {
+  const q = `'${escapeQuery(folderId)}' in parents and name = 'project.json' and trashed = false`;
+  const files = await json<{ files: DriveFile[] }>(
+    `files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType)&pageSize=10`,
+  );
+  if (!files.files[0])
+    throw Error('Cutpeak のプロジェクトフォルダを選択してください');
+  return files.files[0].id;
+}
+
 async function folder(
   name: string,
   parent?: string,
@@ -560,13 +575,7 @@ export async function pickProject(config: DriveConfig): Promise<string | null> {
     }
   });
   if (!folderId) return null;
-  const q = `'${escapeQuery(folderId)}' in parents and name = 'project.json' and trashed = false`;
-  const files = await json<{ files: DriveFile[] }>(
-    `files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType)&pageSize=10`,
-  );
-  if (!files.files[0])
-    throw Error('Cutpeak のプロジェクトフォルダを選択してください');
-  return files.files[0].id;
+  return projectFileInFolder(folderId);
 }
 export async function fetchRemote(fileId: string): Promise<DriveRemoteInfo> {
   const response = await projectRequest(fileId);
