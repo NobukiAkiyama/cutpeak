@@ -203,6 +203,19 @@ button:hover {
   border-radius: 14px;
   background: #080809;
   box-shadow: 0 12px 35px #0004;
+  cursor: grab;
+  transform-origin: center;
+  will-change: transform;
+}
+.preview-stage.panning {
+  cursor: grabbing;
+}
+.preview-stage:fullscreen {
+  transform: none !important;
+}
+.preview-panel .preview-area.preview-navigation,
+.preview-panel .preview-area.preview-navigation:has(.selection-box) {
+  overflow: hidden;
 }
 .preview-canvas {
   border-radius: 14px;
@@ -433,9 +446,9 @@ button:hover {
   position: relative;
   flex-shrink: 0;
   width: 100%;
-  height: 40px;
-  min-height: 40px;
-  padding: 0 16px;
+  height: 58px;
+  min-height: 58px;
+  padding: 0 6px;
   flex-direction: row;
   border: 0;
   border-top: 1px solid #26232b;
@@ -450,27 +463,27 @@ button:hover {
   flex-direction: row;
   width: auto !important;
   height: 100% !important;
-  gap: 4px;
+  gap: 10px;
 }
 .tool-rail [role='tab'],
 .tool-rail button {
-  width: 64px;
-  min-height: 34px;
-  height: 34px;
+  width: 68px;
+  min-height: 52px;
+  height: 52px;
   padding: 2px;
-  gap: 2px;
+  gap: 4px;
   color: #9f96ab;
   border-radius: 9px;
 }
 .tool-rail [role='tab'] span,
 .tool-rail button span {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1;
 }
 .tool-rail [role='tab'] svg,
 .tool-rail button svg {
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
 }
 .tool-rail [role='tab'][data-active],
 .tool-rail [role='tab'].active {
@@ -484,9 +497,9 @@ button:hover {
   display: none;
 }
 .tool-rail .rail-settings {
-  width: 34px;
-  min-height: 34px;
-  height: 34px;
+  width: 52px;
+  min-height: 52px;
+  height: 52px;
   margin: 0;
 }
 .statusbar {
@@ -637,23 +650,12 @@ button:hover {
   .tool-rail {
     position: relative;
     padding: 0 6px;
-    height: 40px;
-    min-height: 40px;
     gap: 2px;
   }
   .tool-rail [role='tablist'] {
     flex: 1;
     justify-content: space-evenly;
-    gap: 0;
     width: auto !important;
-  }
-  .tool-rail [role='tab'],
-  .tool-rail button {
-    width: 56px;
-    min-width: 40px;
-    min-height: 34px;
-    height: 34px;
-    padding: 2px;
   }
   .tool-rail .spacer,
   .tool-rail .rail-settings {
@@ -710,14 +712,6 @@ button:hover {
   }
   .stage-placeholder p {
     font-size: 13px;
-  }
-  .tool-rail [role='tab'],
-  .tool-rail button {
-    width: 48px;
-  }
-  .tool-rail [role='tab'] span,
-  .tool-rail button span {
-    font-size: 10px;
   }
   .timeline-inline-controls .range {
     min-width: 35px;

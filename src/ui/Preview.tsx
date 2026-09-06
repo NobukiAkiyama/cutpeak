@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
 } from 'react';
 import {
   Film,
@@ -46,7 +47,14 @@ export default function Preview() {
   const playback = useRef<Playback | undefined>(undefined);
   const [fallback, setFallback] = useState(0),
     [size, setSize] = useState({ width: 640, height: 360 }),
-    [mode, setMode] = useState('');
+    [mode, setMode] = useState(''),
+    [viewScale, setViewScale] = useState(1),
+    [viewOffset, setViewOffset] = useState({ x: 0, y: 0 }),
+    [panning, setPanning] = useState(false);
+  const viewScaleRef = useRef(viewScale),
+    viewOffsetRef = useRef(viewOffset);
+  viewScaleRef.current = viewScale;
+  viewOffsetRef.current = viewOffset;
   const pending = useRef<{
       project: Project;
       frame: number;
@@ -338,11 +346,11 @@ export default function Preview() {
     node.addEventListener('pointerup', end, { once: true });
     node.addEventListener('pointercancel', cancel, { once: true });
   }
-  function hit(e: ReactPointerEvent) {
+  function hitAt(clientX: number, clientY: number) {
     if (!stageRef.current) return;
     const r = stageRef.current.getBoundingClientRect(),
-      x = ((e.clientX - r.left) / r.width) * project.width,
-      y = ((e.clientY - r.top) / r.height) * project.height;
+      x = ((clientX - r.left) / r.width) * project.width,
+      y = ((clientY - r.top) / r.height) * project.height;
     const item = sceneAt(project, frame)
       .reverse()
       .find(({ clip: c, transform: t }) => {
@@ -358,6 +366,64 @@ export default function Preview() {
         );
       });
     api.select(item?.clip.id || null);
+  }
+  function navigatePreview(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.button !== 0) return;
+    const stage = e.currentTarget,
+      startX = e.clientX,
+      startY = e.clientY,
+      base = viewOffsetRef.current;
+    let moved = false;
+    stage.setPointerCapture(e.pointerId);
+    setPanning(true);
+    const move = (event: PointerEvent) => {
+      const dx = event.clientX - startX,
+        dy = event.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) < 4) return;
+      moved = true;
+      const next = { x: base.x + dx, y: base.y + dy };
+      viewOffsetRef.current = next;
+      setViewOffset(next);
+    };
+    const cleanup = () => {
+      stage.removeEventListener('pointermove', move);
+      stage.removeEventListener('pointerup', end);
+      stage.removeEventListener('pointercancel', cancel);
+      setPanning(false);
+    };
+    const end = (event: PointerEvent) => {
+      cleanup();
+      if (!moved) hitAt(event.clientX, event.clientY);
+    };
+    const cancel = () => cleanup();
+    stage.addEventListener('pointermove', move);
+    stage.addEventListener('pointerup', end, { once: true });
+    stage.addEventListener('pointercancel', cancel, { once: true });
+  }
+  function zoomPreview(e: ReactWheelEvent<HTMLDivElement>) {
+    e.preventDefault();
+    if (!areaRef.current) return;
+    const current = viewScaleRef.current,
+      next = Math.min(4, Math.max(0.5, current * Math.exp(-e.deltaY * 0.002)));
+    if (Math.abs(next - current) < 0.001) return;
+    const r = areaRef.current.getBoundingClientRect(),
+      point = { x: e.clientX - (r.left + r.width / 2), y: e.clientY - (r.top + r.height / 2) },
+      offset = viewOffsetRef.current,
+      ratio = next / current,
+      nextOffset = {
+        x: point.x - (point.x - offset.x) * ratio,
+        y: point.y - (point.y - offset.y) * ratio,
+      };
+    viewScaleRef.current = next;
+    viewOffsetRef.current = nextOffset;
+    setViewScale(next);
+    setViewOffset(nextOffset);
+  }
+  function resetPreviewView() {
+    viewScaleRef.current = 1;
+    viewOffsetRef.current = { x: 0, y: 0 };
+    setViewScale(1);
+    setViewOffset({ x: 0, y: 0 });
   }
   return (
     <main className="preview-panel">
@@ -382,17 +448,21 @@ export default function Preview() {
           />
         </div>
       </div>
-      <div className="preview-area" ref={areaRef}>
+      <div className="preview-area preview-navigation" ref={areaRef}>
         <div
-          className="preview-stage"
-          aria-label="動画プレビュー"
+          className={`preview-stage ${panning ? 'panning' : ''}`}
+          aria-label="動画プレビュー。ドラッグで移動、ホイールで拡大縮小"
+          title="ドラッグで移動・ホイールで拡大縮小・ダブルクリックでリセット"
           ref={stageRef}
           style={{
             width: size.width,
             height: size.height,
             aspectRatio: 'auto',
+            transform: `translate(${viewOffset.x}px, ${viewOffset.y}px) scale(${viewScale})`,
           }}
-          onPointerDown={hit}
+          onPointerDown={navigatePreview}
+          onWheel={zoomPreview}
+          onDoubleClick={resetPreviewView}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
