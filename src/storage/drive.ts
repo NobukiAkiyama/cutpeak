@@ -77,6 +77,8 @@ let scriptPromise: Promise<void> | undefined;
 let redirectCompletion: Promise<boolean> | undefined;
 const scope = 'https://www.googleapis.com/auth/drive.file';
 const oauthStateKey = 'cutpeak:drive-oauth-state';
+const pickerStateKey = 'cutpeak:drive-picker-state';
+const pickerResultKey = 'cutpeak:drive-picker-result';
 const oauthResponseKeys = [
   'authuser',
   'code',
@@ -88,6 +90,7 @@ const oauthResponseKeys = [
   'scope',
   'state',
 ];
+const pickerResponseKeys = ['picked_file_ids', 'allow_folder_selection'];
 export function connected() {
   return !!accessToken && Date.now() < expires;
 }
@@ -143,17 +146,56 @@ async function exchangeAuthorizationCode(code: string) {
 }
 function clearOAuthResponse() {
   const url = new URL(window.location.href);
-  for (const key of oauthResponseKeys) url.searchParams.delete(key);
+  for (const key of [...oauthResponseKeys, ...pickerResponseKeys])
+    url.searchParams.delete(key);
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+}
+export function consumePickerResult() {
+  const value = sessionStorage.getItem(pickerResultKey);
+  if (!value) return null;
+  sessionStorage.removeItem(pickerResultKey);
+  return value;
+}
+function isSafari() {
+  return (
+    /Safari\//.test(navigator.userAgent) &&
+    !/Chrome\//.test(navigator.userAgent) &&
+    !/Chromium\//.test(navigator.userAgent) &&
+    !/CriOS\//.test(navigator.userAgent) &&
+    !/FxiOS\//.test(navigator.userAgent)
+  );
+}
+function pickerRedirect(config: DriveConfig) {
+  const stateBytes = new Uint8Array(32);
+  crypto.getRandomValues(stateBytes);
+  const state = Array.from(stateBytes, (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('');
+  sessionStorage.setItem(pickerStateKey, state);
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.searchParams.set('client_id', config.clientId);
+  url.searchParams.set('redirect_uri', window.location.origin);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', scope);
+  url.searchParams.set('access_type', 'offline');
+  url.searchParams.set('prompt', 'consent');
+  url.searchParams.set('trigger_onepick', 'true');
+  url.searchParams.set('allow_folder_selection', 'true');
+  url.searchParams.set('mimetypes', folderMime);
+  url.searchParams.set('state', state);
+  window.location.assign(url);
 }
 export function completeDriveRedirect() {
   redirectCompletion ??= (async () => {
     const parameters = new URLSearchParams(window.location.search);
     const code = parameters.get('code');
     const error = parameters.get('error');
-    if (!code && !error) return false;
+    const pickedFileId = parameters.get('picked_file_ids')?.split(',')[0];
+    if (!code && !error && !pickedFileId) return false;
     try {
-      const expectedState = sessionStorage.getItem(oauthStateKey);
+      const pickerState = sessionStorage.getItem(pickerStateKey);
+      const expectedState = pickerState || sessionStorage.getItem(oauthStateKey);
+      sessionStorage.removeItem(pickerStateKey);
       sessionStorage.removeItem(oauthStateKey);
       if (!expectedState || parameters.get('state') !== expectedState)
         throw Error('Google Drive の認証状態を確認できませんでした');
@@ -163,6 +205,7 @@ export function completeDriveRedirect() {
             'Google Drive の接続をキャンセルしました',
         );
       await exchangeAuthorizationCode(code!);
+      if (pickedFileId) sessionStorage.setItem(pickerResultKey, pickedFileId);
       return true;
     } finally {
       clearOAuthResponse();
@@ -209,6 +252,7 @@ export async function connect(config: DriveConfig) {
   if (!config.clientId)
     throw Error('Google Cloud の Client ID を設定してください');
   await prepareGoogle();
+  sessionStorage.removeItem(pickerStateKey);
   const stateBytes = new Uint8Array(32);
   crypto.getRandomValues(stateBytes);
   const state = Array.from(stateBytes, (byte) =>
@@ -426,7 +470,12 @@ export async function pickProject(config: DriveConfig): Promise<string | null> {
     throw Error(
       'Google Picker を使うには Google API Key とプロジェクト番号（App ID）が必要です',
     );
-  if (!connected()) await connect(config);
+  if (isSafari()) {
+    pickerRedirect(config);
+    return new Promise(() => {});
+  }
+  if (!connected() && !(await restoreConnection()))
+    throw Error('Google Drive の接続が切れました。再接続してください');
   await new Promise<void>((resolve) => window.gapi!.load('picker', resolve));
   const folderId = await new Promise<string | null>((resolve, reject) => {
     try {

@@ -16,6 +16,7 @@ import {
   prepareGoogle,
   restoreConnection,
   pickProject,
+  consumePickerResult,
   pullDrive,
   loadDriveConfig,
   type DriveConfig,
@@ -97,6 +98,18 @@ export default function DriveDialog({
       setStatus('');
     }
   };
+  useEffect(() => {
+    if (!open) return;
+    const folderId = consumePickerResult();
+    if (!folderId) return;
+    void run(async () => {
+      await persistNow();
+      const saved = await pullDrive(folderId, setStatus);
+      await openProject(saved);
+      notify('Drive のプロジェクトを開きました');
+      onClose();
+    });
+  }, [open, onClose]);
   return (
     <Modal
       open={open}

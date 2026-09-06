@@ -67,7 +67,10 @@ export default function App() {
     void bootstrap();
     void completeDriveRedirect()
       .then((completed) => {
-        if (completed) notify('Google Drive に接続しました');
+        if (completed) {
+          notify('Google Drive に接続しました');
+          setModal('drive');
+        }
       })
       .catch((error) => notify((error as Error).message));
     const stop = startSyncLoop(),
