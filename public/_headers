@@ -1,5 +1,3 @@
-# Cross-origin isolation is required for SharedArrayBuffer.
-# Keep all editor assets same-origin so COEP can remain strict.
-/*
+/
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
