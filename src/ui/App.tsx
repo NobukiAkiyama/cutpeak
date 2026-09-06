@@ -431,6 +431,11 @@ export default function App() {
             ブラウザの共有またはメニューから「ホーム画面に追加」か「アプリをインストール」を選べます。
           </p>
         )}
+        <div className="section-label">このアプリについて</div>
+        <div className="export-detail">
+          <span>製作者</span>
+          <strong>yazirushi</strong>
+        </div>
         <div className="section-label">ブラウザ診断</div>
         <div className="diagnostics">
           {Object.entries({
