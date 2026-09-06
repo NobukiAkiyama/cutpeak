@@ -123,11 +123,18 @@ export default function App() {
         e.preventDefault();
         if (e.shiftKey) api.redo();
         else api.undo();
+      } else if (
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === 's'
+      ) {
+        e.preventDefault();
+        void persistNow();
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         if (s.selected)
           api.execute({ type: 'clip.split', clipId: s.selected, frame: s.frame });
-        else void persistNow();
+        else notify('分割するクリップを選択してください');
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         if (s.selected)
@@ -477,7 +484,7 @@ export default function App() {
             ['複製', '⌘ / Ctrl + D'],
             ['元に戻す', '⌘ / Ctrl + Z'],
             ['やり直す', '⌘ / Ctrl + Shift + Z'],
-            ['今すぐ保存', '⌘ / Ctrl + S（未選択時）'],
+            ['今すぐ保存', '⌘ / Ctrl + Shift + S'],
             ['スナップを一時解除', 'Alt + ドラッグ'],
           ].map(([label, key]) => (
             <div key={label}>

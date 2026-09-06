@@ -387,6 +387,17 @@ describe('project validation and sync', () => {
     p.width = 99999;
     expect(() => validateProject(p)).toThrow();
   });
+  it('rejects projects without tracks or with missing asset references', () => {
+    const p = makeProject();
+    p.tracks = [];
+    expect(() => validateProject(p)).toThrow('対応していないプロジェクト形式です');
+
+    const { p: withClip, c } = fixture();
+    c.assetId = 'missing-asset';
+    expect(() => validateProject(withClip)).toThrow(
+      'クリップが参照する素材が見つかりません',
+    );
+  });
   it('rejects broken repository parent references', () => {
     const { e } = fixture();
     e.repository.commits[e.repository.head].parentIds = ['missing'];

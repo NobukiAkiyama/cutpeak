@@ -1,4 +1,4 @@
-import { useEditor, api, persistNow, notify } from '../app/store';
+import { useEditor, api, openProject, persistNow, notify } from '../app/store';
 import {
   connected,
   pushDrive,
@@ -27,6 +27,15 @@ export async function syncProject(
       onProgress || (() => {}),
       saveName,
     );
+    if (result.fastForward) {
+      if (result.record.fileId) {
+        const pulled = await pullDrive(result.record.fileId, onProgress || (() => {}));
+        if (useEditor.getState().project.id === current.project.id)
+          await openProject(pulled);
+      }
+      notify('Drive の更新を取得しました');
+      return;
+    }
     if (result.conflict) {
       let cachedAssetIds: SyncRecord['assetIds'] = {};
       if (result.record.fileId) {

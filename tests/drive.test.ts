@@ -255,6 +255,38 @@ describe('Drive data preservation', () => {
     );
     expect(result.record.pending).toBe(false);
   });
+  it('recognizes a remote-only update as a fast-forward', async () => {
+    const p = makeProject();
+    const e = new Editor(p);
+    const remoteEditor = new Editor(p, e.repository);
+    remoteEditor.execute({ type: 'project.update', patch: { name: 'Remote edit' } });
+    await writeMeta(`drive-sync:${p.id}`, {
+      fileId: 'project',
+      folderId: 'folder',
+      lastSyncedHead: e.repository.head,
+      pending: true,
+      mode: 'local',
+      assetIds: {},
+    } satisfies SyncRecord);
+    const fetch = route(remoteEditor.repository);
+    vi.stubGlobal('fetch', fetch);
+
+    const result = await pushDrive(
+      { project: e.project, repository: e.repository },
+      'local',
+      () => {},
+    );
+
+    expect(result.fastForward).toBe(true);
+    expect(result.conflict).toBeUndefined();
+    expect(
+      fetch.mock.calls.some(([url, init]) =>
+        (url instanceof Request ? url.url : url.toString()).includes(
+          '/api/drive-sync/projects/project',
+        ) && (init?.method || 'GET') === 'PATCH',
+      ),
+    ).toBe(false);
+  });
   it('never blindly overwrites if Drive omits the ETag', async () => {
     const { p, e, remote } = fixture();
     await syncRecord(p.id, remote);

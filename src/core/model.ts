@@ -248,6 +248,14 @@ export function validateProject(value: unknown): asserts value is Project {
   const p = value as Project;
   const finite = (n: unknown) => typeof n === 'number' && Number.isFinite(n);
   const integer = (n: unknown) => finite(n) && Number.isSafeInteger(n);
+  const clipKinds: ClipKind[] = [
+    'video',
+    'audio',
+    'image',
+    'text',
+    'caption',
+    'shape',
+  ];
   if (
     !p ||
     p.schemaVersion !== 1 ||
@@ -266,12 +274,22 @@ export function validateProject(value: unknown): asserts value is Project {
     fps(p) < 1 ||
     fps(p) > 120 ||
     !Array.isArray(p.tracks) ||
+    !p.tracks.length ||
     !Array.isArray(p.assets)
   )
     throw Error('対応していないプロジェクト形式です');
   const ids = new Set<string>();
   for (const t of p.tracks) {
-    if (typeof t.id !== 'string' || ids.has(t.id) || !Array.isArray(t.clips))
+    if (
+      typeof t.id !== 'string' ||
+      typeof t.name !== 'string' ||
+      !clipKinds.includes(t.type) ||
+      typeof t.locked !== 'boolean' ||
+      typeof t.hidden !== 'boolean' ||
+      typeof t.muted !== 'boolean' ||
+      ids.has(t.id) ||
+      !Array.isArray(t.clips)
+    )
       throw Error('トラックが不正です');
     ids.add(t.id);
     for (const c of t.clips) {
@@ -284,11 +302,15 @@ export function validateProject(value: unknown): asserts value is Project {
         c.durationFrames < 1 ||
         !integer(c.sourceInUs) ||
         c.sourceInUs < 0 ||
-        !['video', 'audio', 'image', 'text', 'caption', 'shape'].includes(
-          c.type,
-        )
+        !clipKinds.includes(c.type)
       )
         throw Error('クリップの時間が不正です');
+      if (
+        c.assetId !== undefined &&
+        (typeof c.assetId !== 'string' ||
+          !p.assets.some((asset) => asset.id === c.assetId))
+      )
+        throw Error('クリップが参照する素材が見つかりません');
       ids.add(c.id);
       for (const key of [
         'x',

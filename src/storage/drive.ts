@@ -658,7 +658,11 @@ export async function pushDrive(
   mode: SyncRecord['mode'],
   progress: (m: string) => void,
   saveName?: string,
-): Promise<{ conflict?: Repository; record: SyncRecord }> {
+): Promise<{
+  conflict?: Repository;
+  fastForward?: true;
+  record: SyncRecord;
+}> {
   const { project: p, repository: r } = state;
   let record = (await readMeta<SyncRecord>(`drive-sync:${p.id}`)) || {
     lastSyncedHead: null,
@@ -721,8 +725,9 @@ export async function pushDrive(
       localSignature !== record.lastSyncedSignature &&
       remoteSignature !== record.lastSyncedSignature &&
       localSignature !== remoteSignature;
-    if (state === 'conflict' || state === 'pull' || branchConflict)
+    if (state === 'conflict' || branchConflict)
       return { conflict: remote.repository, record };
+    if (state === 'pull') return { fastForward: true, record };
     if (
       state === 'equal' &&
       record.lastSyncedSignature === repositorySignature(r) &&

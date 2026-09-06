@@ -227,9 +227,18 @@ export const api = {
     trackId?: string,
   ) {
     const p = useEditor.getState().project;
-    const track = trackId
-      ? p.tracks.find((t) => t.id === trackId && !t.locked)
-      : p.tracks.find((t) => t.type === type && !t.locked);
+    const requestedTrack = trackId
+      ? p.tracks.find((t) => t.id === trackId)
+      : undefined;
+    if (trackId && !requestedTrack) {
+      notify('トラックが見つかりません');
+      return '';
+    }
+    if (requestedTrack?.locked) {
+      notify('トラックがロックされています');
+      return '';
+    }
+    const track = requestedTrack || p.tracks.find((t) => t.type === type && !t.locked);
     const c = makeClip(
       p,
       type,
