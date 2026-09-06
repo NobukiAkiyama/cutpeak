@@ -11,7 +11,7 @@ import { useEditor, projectFiles } from '../app/store';
 import { endFrame, fps, audible } from '../core/model';
 import { probeExport } from '../app/capabilities';
 import type { ExportJob } from '../media/export';
-import { download } from '../storage/local';
+import { saveDownload, supportsSaveLocation } from '../storage/local';
 export default function ExportDialog({
   open,
   onClose,
@@ -26,6 +26,7 @@ export default function ExportDialog({
     [formats, setFormats] = useState({ mp4: false, webm: false }),
     [supported, setSupported] = useState<boolean | null>(null),
     [running, setRunning] = useState(false),
+    [saving, setSaving] = useState(false),
     [progress, setProgress] = useState(0),
     [error, setError] = useState(''),
     [result, setResult] = useState<{ blob: Blob; name: string } | null>(null);
@@ -72,6 +73,19 @@ export default function ExportDialog({
     };
   }, [open, format, width, height, rate, bitrate, hasAudio]);
   useEffect(() => () => worker.current?.terminate(), []);
+  async function saveResult(value: { blob: Blob; name: string }) {
+    setSaving(true);
+    setError('');
+    try {
+      const outcome = await saveDownload(value.blob, value.name);
+      if (outcome === 'cancelled')
+        setError('保存先の選択をキャンセルしました。下のボタンから再度保存できます。');
+    } catch (e) {
+      setError(`保存できませんでした: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
   async function start() {
     if (!supported || running) return;
     setRunning(true);
@@ -83,13 +97,13 @@ export default function ExportDialog({
       const snapshot = structuredClone(project),
         files = await projectFiles(snapshot),
         jobId = crypto.randomUUID();
-      const finish = (data: { blob: Blob; path?: string }) => {
+      const finish = async (data: { blob: Blob; path?: string }) => {
         setProgress(1);
         setRunning(false);
         const value = { blob: data.blob, name: `${snapshot.name}.${format}` };
         setResult(value);
-        download(value.blob, value.name);
         worker.current?.terminate();
+        if (!supportsSaveLocation()) await saveResult(value);
         if (data.path)
           setTimeout(() => {
             void navigator.storage
@@ -108,28 +122,35 @@ export default function ExportDialog({
         outputWidth: width,
         outputHeight: height,
       };
-      if (typeof OffscreenCanvas === 'undefined') {
+      const runOnMainThread = async () => {
         const { runExport } = await import('../media/export');
-        finish(await runExport(job, setProgress, () => cancelled.current));
-      } else {
+        await finish(
+          await runExport(job, setProgress, () => cancelled.current),
+        );
+      };
+      if (typeof OffscreenCanvas === 'undefined' || typeof Worker === 'undefined')
+        await runOnMainThread();
+      else {
         const w = new Worker(
           new URL('../workers/export.worker.ts', import.meta.url),
           { type: 'module' },
         );
         worker.current = w;
-        w.onerror = (e) => {
-          setError(e.message || '書き出しに失敗しました');
-          setRunning(false);
+        w.onerror = () => {
           w.terminate();
+          void runOnMainThread().catch((error) => {
+            setError(`書き出しに失敗しました: ${(error as Error).message}`);
+            setRunning(false);
+          });
         };
         w.onmessage = ({ data }) => {
           if (data.type === 'progress') setProgress(data.value);
           if (data.type === 'error') {
-            setError(data.error);
+            setError(data.error || '書き出しに失敗しました');
             setRunning(false);
             w.terminate();
           }
-          if (data.type === 'done') finish(data);
+          if (data.type === 'done') void finish(data);
         };
         w.postMessage({ type: 'export', ...job });
       }
@@ -143,7 +164,7 @@ export default function ExportDialog({
     <Modal
       open={open}
       onClose={() => {
-        if (!running) onClose();
+        if (!running && !saving) onClose();
       }}
       title="動画を書き出す"
       description="映像と音声は、端末内で処理されます。"
@@ -259,10 +280,13 @@ export default function ExportDialog({
           <small>{bytes(result.blob.size)}</small>
           <button
             className="secondary full"
-            onClick={() => download(result.blob, result.name)}
+            disabled={saving}
+            onClick={() => void saveResult(result)}
           >
             <Download size={16} />
-            もう一度ダウンロード
+            {supportsSaveLocation()
+              ? '保存先を選んでダウンロード'
+              : 'もう一度ダウンロード'}
           </button>
         </div>
       )}
@@ -275,6 +299,11 @@ export default function ExportDialog({
           }}
         >
           書き出しを中止
+        </button>
+      ) : saving ? (
+        <button className="secondary full" disabled>
+          <LoaderCircle size={16} className="spin" />
+          保存先を選択中…
         </button>
       ) : (
         <button

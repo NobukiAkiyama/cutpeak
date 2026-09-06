@@ -1,11 +1,12 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   saveLocal,
   loadLocal,
   putAsset,
   getAsset,
   readMeta,
+  saveDownload,
 } from '../src/storage/local';
 import { Editor } from '../src/core/history';
 import { makeProject } from '../src/core/model';
@@ -68,6 +69,7 @@ beforeEach(() => {
     configurable: true,
   });
 });
+afterEach(() => vi.unstubAllGlobals());
 const fixture = () => {
   const project = makeProject();
   return { project, repository: new Editor(project).repository };
@@ -117,5 +119,24 @@ describe('local durability', () => {
     expect(await (await getAsset(p.id, 'asset'))!.text()).toBe(
       'original-media-bytes',
     );
+  });
+  it('lets the browser choose a destination for rendered files', async () => {
+    const write = vi.fn(),
+      close = vi.fn(async () => {}),
+      createWritable = vi.fn(async () => ({
+        write,
+        close,
+        abort: vi.fn(async () => {}),
+      })),
+      showSaveFilePicker = vi.fn(async (options: { suggestedName?: string }) => {
+        expect(options.suggestedName).toBe('旅行動画.mp4');
+        return { createWritable } as unknown as FileSystemFileHandle;
+      });
+    vi.stubGlobal('window', { showSaveFilePicker });
+    const file = new Blob(['rendered'], { type: 'video/mp4' });
+    expect(await saveDownload(file, '旅行動画.mp4')).toBe('saved');
+    expect(showSaveFilePicker).toHaveBeenCalledOnce();
+    expect(write).toHaveBeenCalledWith(file);
+    expect(close).toHaveBeenCalledOnce();
   });
 });

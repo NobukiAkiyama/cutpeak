@@ -202,3 +202,78 @@ export function download(blob: Blob, name: string) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
+
+interface SaveFilePickerOptions {
+  suggestedName?: string;
+  types?: Array<{
+    description: string;
+    accept: Record<string, string[]>;
+  }>;
+}
+
+type SaveFilePicker = (
+  options?: SaveFilePickerOptions,
+) => Promise<FileSystemFileHandle>;
+
+export function supportsSaveLocation() {
+  return (
+    typeof window !== 'undefined' &&
+    typeof (window as Window & { showSaveFilePicker?: SaveFilePicker })
+      .showSaveFilePicker === 'function'
+  );
+}
+
+function safeDownloadName(name: string) {
+  return (
+    Array.from(name)
+      .map((character) => {
+        const code = character.charCodeAt(0);
+        return code < 32 || code === 127 ? '_' : character;
+      })
+      .join('')
+      .replace(/[<>:"/\\|?*]/g, '_')
+      .trim()
+      .replace(/\.+$/, '') || 'cutpeak-export'
+  );
+}
+
+export async function saveDownload(
+  blob: Blob,
+  name: string,
+): Promise<'saved' | 'downloaded' | 'cancelled'> {
+  const picker = supportsSaveLocation()
+    ? (window as unknown as { showSaveFilePicker: SaveFilePicker })
+        .showSaveFilePicker
+    : undefined;
+  const safeName = safeDownloadName(name);
+  if (!picker) {
+    download(blob, safeName);
+    return 'downloaded';
+  }
+  let handle: FileSystemFileHandle;
+  try {
+    const extension = safeName.match(/\.[^.]+$/)?.[0] || '';
+    handle = await picker({
+      suggestedName: safeName,
+      types: [
+        {
+          description: '動画ファイル',
+          accept: { [blob.type || 'application/octet-stream']: [extension] },
+        },
+      ],
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError')
+      return 'cancelled';
+    throw error;
+  }
+  const writable = await handle.createWritable();
+  try {
+    await writable.write(blob);
+    await writable.close();
+  } catch (error) {
+    await writable.abort().catch(() => {});
+    throw error;
+  }
+  return 'saved';
+}
