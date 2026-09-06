@@ -32,6 +32,7 @@ import ProjectDialog from './ProjectDialog';
 import HistoryDialog from './HistoryDialog';
 import ExportDialog from './ExportDialog';
 import DriveDialog from './DriveDialog';
+import { completeDriveRedirect } from '../storage/drive';
 import { Modal, bytes, Field } from './controls';
 export default function App() {
   const state = useEditor();
@@ -58,6 +59,11 @@ export default function App() {
     [tablet, setTablet] = useState(window.innerWidth <= 850);
   useEffect(() => {
     void bootstrap();
+    void completeDriveRedirect()
+      .then((completed) => {
+        if (completed) notify('Google Drive に接続しました');
+      })
+      .catch((error) => notify((error as Error).message));
     const stop = startSyncLoop(),
       unregister = registerWebTools();
     const network = () => setOnline(navigator.onLine);

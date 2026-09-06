@@ -51,7 +51,20 @@ let accessToken = '',
   expires = 0;
 let client: CodeClient;
 let scriptPromise: Promise<void> | undefined;
+let redirectCompletion: Promise<boolean> | undefined;
 const scope = 'https://www.googleapis.com/auth/drive.file';
+const oauthStateKey = 'cutpeak:drive-oauth-state';
+const oauthResponseKeys = [
+  'authuser',
+  'code',
+  'error',
+  'error_description',
+  'error_uri',
+  'hd',
+  'prompt',
+  'scope',
+  'state',
+];
 export function connected() {
   return !!accessToken && Date.now() < expires;
 }
@@ -81,6 +94,58 @@ export async function restoreConnection() {
   } catch {
     return false;
   }
+}
+async function exchangeAuthorizationCode(code: string) {
+  const response = await fetch('/api/drive-auth/exchange', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XmlHttpRequest',
+    },
+    body: JSON.stringify({ code }),
+  });
+  const result: unknown = await response.json();
+  if (!response.ok) {
+    const detail =
+      typeof result === 'object' &&
+      result !== null &&
+      'error' in result &&
+      typeof result.error === 'string'
+        ? result.error
+        : 'Google Drive の認証に失敗しました';
+    throw Error(detail);
+  }
+  applyAccessToken(result);
+}
+function clearOAuthResponse() {
+  const url = new URL(window.location.href);
+  for (const key of oauthResponseKeys) url.searchParams.delete(key);
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+}
+export function completeDriveRedirect() {
+  redirectCompletion ??= (async () => {
+    const parameters = new URLSearchParams(window.location.search);
+    const code = parameters.get('code');
+    const error = parameters.get('error');
+    if (!code && !error) return false;
+    try {
+      const expectedState = sessionStorage.getItem(oauthStateKey);
+      sessionStorage.removeItem(oauthStateKey);
+      if (!expectedState || parameters.get('state') !== expectedState)
+        throw Error('Google Drive の認証状態を確認できませんでした');
+      if (error)
+        throw Error(
+          parameters.get('error_description') ||
+            'Google Drive の接続をキャンセルしました',
+        );
+      await exchangeAuthorizationCode(code!);
+      return true;
+    } finally {
+      clearOAuthResponse();
+    }
+  })();
+  return redirectCompletion;
 }
 export async function disconnect() {
   const response = await fetch('/api/drive-auth/logout', {
@@ -123,59 +188,21 @@ export async function connect(config: DriveConfig) {
       'Google Cloud の Client ID、API Key、App ID を設定してください',
     );
   await prepareGoogle();
-  await new Promise<void>((resolve, reject) => {
-    client = window.google!.accounts.oauth2.initCodeClient({
-      client_id: config.clientId,
-      scope,
-      ux_mode: 'popup',
-      select_account: false,
-      callback: async (r) => {
-        if (r.error) {
-          reject(Error(r.error_description || r.error));
-          return;
-        }
-        if (!r.code) {
-          reject(Error('Google から認証コードを受け取れませんでした'));
-          return;
-        }
-        try {
-          const response = await fetch('/api/drive-auth/exchange', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Requested-With': 'XmlHttpRequest',
-            },
-            body: JSON.stringify({ code: r.code }),
-          });
-          const result: unknown = await response.json();
-          if (!response.ok) {
-            const detail =
-              typeof result === 'object' &&
-              result !== null &&
-              'error' in result &&
-              typeof result.error === 'string'
-                ? result.error
-                : 'Google Drive の認証に失敗しました';
-            throw Error(detail);
-          }
-          applyAccessToken(result);
-          resolve();
-        } catch (error) {
-          reject(error);
-        }
-      },
-      error_callback: (e) =>
-        reject(
-          Error(
-            e.type === 'popup_closed'
-              ? '接続をキャンセルしました'
-              : e.message || '認証画面を開けませんでした',
-          ),
-        ),
-    });
-    client.requestCode();
+  const stateBytes = new Uint8Array(32);
+  crypto.getRandomValues(stateBytes);
+  const state = Array.from(stateBytes, (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('');
+  sessionStorage.setItem(oauthStateKey, state);
+  client = window.google!.accounts.oauth2.initCodeClient({
+    client_id: config.clientId,
+    scope,
+    ux_mode: 'redirect',
+    redirect_uri: window.location.origin,
+    state,
+    select_account: false,
   });
+  client.requestCode();
 }
 async function request(url: string, init: RequestInit = {}, retried = false) {
   if (!connected() && !(await restoreConnection()))

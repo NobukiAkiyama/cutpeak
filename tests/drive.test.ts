@@ -1,24 +1,17 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import {
-  connect,
   connected,
   disconnect,
   normalizeDriveSaveName,
   pushDrive,
   restoreConnection,
   upload,
-  type DriveConfig,
   type SyncRecord,
 } from '../src/storage/drive';
 import { writeMeta, readMeta } from '../src/storage/local';
 import { makeProject } from '../src/core/model';
 import { Editor, type Repository } from '../src/core/history';
-const config: DriveConfig = {
-  clientId: 'test-client',
-  apiKey: 'test-key',
-  appId: 'test-app',
-};
 beforeEach(async () => {
   vi.stubGlobal('navigator', { onLine: true });
   vi.stubGlobal('document', {
@@ -32,8 +25,8 @@ beforeEach(async () => {
     google: {
       accounts: {
         oauth2: {
-          initCodeClient: (c: { callback: (r: unknown) => void }) => ({
-            requestCode: () => c.callback({ code: 'test-code' }),
+          initCodeClient: () => ({
+            requestCode: () => {},
           }),
         },
       },
@@ -48,12 +41,12 @@ beforeEach(async () => {
           : url instanceof Request
             ? url.url
             : url.href;
-      if (requestUrl === '/api/drive-auth/exchange')
+      if (requestUrl === '/api/drive-auth/token')
         return response({ access_token: 'test-token-only', expires_in: 3600 });
       throw Error(`Unexpected authentication request: ${requestUrl}`);
     }),
   );
-  await connect(config);
+  await restoreConnection();
 });
 afterEach(() => vi.unstubAllGlobals());
 const response = (

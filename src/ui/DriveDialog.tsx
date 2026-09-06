@@ -125,13 +125,14 @@ export default function DriveDialog({
         <button
           className="primary full"
           disabled={busy || restoring || !available}
-          onClick={() =>
-            void run(async () => {
-              await connect(config);
-              setConnected(true);
-              await syncProject(undefined, setStatus);
-            })
-          }
+          onClick={() => {
+            setBusy(true);
+            setError('');
+            void connect(config).catch((e) => {
+              setError((e as Error).message);
+              setBusy(false);
+            });
+          }}
         >
           <Link2 size={16} />
           {restoring

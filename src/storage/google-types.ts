@@ -41,10 +41,10 @@ export interface GoogleSdk {
       initCodeClient(options: {
         client_id: string;
         scope: string;
-        ux_mode: 'popup';
+        ux_mode: 'redirect';
+        redirect_uri: string;
+        state: string;
         select_account?: boolean;
-        callback: (response: CodeResponse) => void;
-        error_callback: (error: { type: string; message?: string }) => void;
       }): CodeClient;
       initTokenClient(options: {
         client_id: string;
