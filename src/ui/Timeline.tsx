@@ -115,7 +115,7 @@ export function TimelineControls() {
 }
 
 export default function Timeline() {
-  const { project, frame, selected, zoom, snapping } = useEditor();
+  const { project, frame, playing, selected, zoom, snapping } = useEditor();
   const scroll = useRef<HTMLDivElement>(null);
   const [actions, setActions] = useState<{
     id: string;
@@ -149,6 +149,22 @@ export default function Timeline() {
         ?.focus(),
     );
   }, [trackActions]);
+  useEffect(() => {
+    if (!playing) return;
+    const scroller = scroll.current;
+    if (!scroller) return;
+
+    const playheadX = 136 + frame * zoom;
+    const leftEdge = scroller.scrollLeft + 24;
+    const rightEdge = scroller.scrollLeft + scroller.clientWidth - 120;
+    if (playheadX >= leftEdge && playheadX <= rightEdge) return;
+
+    const nextScroll = playheadX - scroller.clientWidth * 0.3;
+    scroller.scrollLeft = Math.max(
+      0,
+      Math.min(nextScroll, scroller.scrollWidth - scroller.clientWidth),
+    );
+  }, [frame, playing, zoom]);
   const actionInfo = actions ? findClip(project, actions.id) : undefined;
   const trackActionInfo = trackActions
     ? project.tracks.find((t) => t.id === trackActions.id)
