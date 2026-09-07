@@ -19,6 +19,7 @@ import {
   WifiOff,
   HardDrive,
   MonitorDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEditor, bootstrap, api, persistNow, notify } from '../app/store';
@@ -45,6 +46,7 @@ export default function App() {
     saveStatus,
     capabilities,
     panel,
+    inspectorOpen,
   } = state;
   const [modal, setModal] = useState<
       | null
@@ -287,7 +289,11 @@ export default function App() {
         orientation="horizontal"
         value={panel}
         onValueChange={(v) =>
-          useEditor.setState({ panel: v as typeof panel, mobilePanel: true })
+          useEditor.setState({
+            panel: v as typeof panel,
+            mobilePanel: true,
+            inspectorOpen: false,
+          })
         }
       >
         <TabsList aria-label="素材ツール">
@@ -298,7 +304,7 @@ export default function App() {
               className={panel === key ? 'active' : ''}
               onClick={() => {
                 usePanelLayout.getState().show('library', true);
-                useEditor.setState({ mobilePanel: true });
+                useEditor.setState({ mobilePanel: true, inspectorOpen: false });
               }}
             >
               <Icon size={21} />
@@ -306,6 +312,19 @@ export default function App() {
             </TabsTrigger>
           ))}
         </TabsList>
+        <button
+          className={`mobile-inspector-button ${inspectorOpen ? 'active' : ''}`}
+          title="編集設定を開く"
+          aria-label="編集設定を開く"
+          aria-pressed={inspectorOpen}
+          onClick={() => {
+            usePanelLayout.getState().show('inspector', true);
+            useEditor.setState({ inspectorOpen: true, mobilePanel: false });
+          }}
+        >
+          <SlidersHorizontal size={21} />
+          <span>編集</span>
+        </button>
         <div className="spacer" />
         <button
           title="設定とブラウザ診断"

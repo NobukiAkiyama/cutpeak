@@ -1175,3 +1175,85 @@ button:hover {
   .project-save-card { padding: 16px; }
   .project-create-form > button { width: 100%; }
 }
+
+/* Mobile editing surface: keep the canvas visible and switch auxiliary panels
+   into a focused view so controls remain comfortable to use with touch. */
+@media (max-width: 850px) {
+  .mobile-workspace {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    background: #101011;
+  }
+  .mobile-main-pane {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .mobile-timeline-pane {
+    flex: 0 0 clamp(224px, 36dvh, 300px);
+    min-height: 0;
+    border-top: 1px solid #302836;
+  }
+  .mobile-workspace .workspace-pane {
+    background: #151516;
+  }
+  .mobile-workspace .pane-titlebar {
+    height: 38px;
+    padding-left: 14px;
+    background: #18171a;
+  }
+  .mobile-workspace .pane-titlebar > button {
+    margin-left: auto;
+    width: 34px;
+    height: 32px;
+  }
+  .mobile-workspace .pane-content {
+    min-height: 0;
+  }
+  .mobile-workspace .preview-panel,
+  .mobile-workspace .library,
+  .mobile-workspace .inspector {
+    min-height: 0;
+  }
+  .mobile-workspace .preview-panel {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .mobile-workspace .timeline {
+    height: 100%;
+    min-height: 0;
+    border-top: 0;
+  }
+  .mobile-inspector-button {
+    display: flex !important;
+    flex-direction: column;
+    color: #9f96ab;
+  }
+  .mobile-inspector-button.active {
+    background: #282033 !important;
+    color: #c2a0f9 !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .topbar .text-button,
+  .topbar .save-status,
+  .topbar button[title='Google Drive'],
+  .topbar .workspace-menu-trigger {
+    display: none;
+  }
+  .topbar .compact-settings {
+    display: inline-flex;
+  }
+  .mobile-timeline-pane {
+    flex-basis: clamp(220px, 37dvh, 276px);
+  }
+  .mobile-workspace .pane-titlebar {
+    height: 34px;
+  }
+  .mobile-workspace .preview-panel > .panel-heading {
+    height: 32px;
+  }
+}

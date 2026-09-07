@@ -56,10 +56,14 @@ function Pane({
   id,
   children,
   actions,
+  onClose,
+  closable = true,
 }: {
   id: PanelId;
   children: ReactNode;
   actions?: ReactNode;
+  onClose?: () => void;
+  closable?: boolean;
 }) {
   const show = usePanelLayout((s) => s.show);
   return (
@@ -70,13 +74,15 @@ function Pane({
       <div className="pane-titlebar">
         <span>{panelNames[id]}</span>
         {actions && <div className="pane-titlebar-actions">{actions}</div>}
-        <button
-          title={`${panelNames[id]}を閉じる`}
-          aria-label={`${panelNames[id]}を閉じる`}
-          onClick={() => show(id, false)}
-        >
-          <X size={15} />
-        </button>
+        {closable && (
+          <button
+            title={`${panelNames[id]}を閉じる`}
+            aria-label={`${panelNames[id]}を閉じる`}
+            onClick={() => onClose?.() ?? show(id, false)}
+          >
+            <X size={15} />
+          </button>
+        )}
       </div>
       <div className="pane-content">{children}</div>
     </section>
@@ -84,12 +90,7 @@ function Pane({
 }
 export default function Workspace({ tablet }: { tablet: boolean }) {
   const { visible, layouts, saveLayout, generation, reset } = usePanelLayout();
-  const { ready } = useEditor();
-  const upperIds = (['library', 'preview', 'inspector'] as PanelId[]).filter(
-    (id) => visible[id],
-  );
-  const columnKey = `${tablet ? 'compact' : 'desktop'}:${upperIds.join('|')}`;
-  const rowKey = `rows:${upperIds.length > 0}:${visible.timeline}`;
+  const { ready, mobilePanel, inspectorOpen } = useEditor();
   const contents: Record<string, ReactNode> = {
     library: <Library />,
     preview: <Preview />,
@@ -99,6 +100,42 @@ export default function Workspace({ tablet }: { tablet: boolean }) {
       </aside>
     ),
   };
+  if (tablet) {
+    const mobileId: PanelId = mobilePanel
+      ? 'library'
+      : inspectorOpen
+        ? 'inspector'
+        : 'preview';
+    return (
+      <div className="resizable-workspace mobile-workspace" aria-busy={!ready}>
+        <div className="mobile-main-pane">
+          <Pane
+            id={mobileId}
+            closable={mobileId !== 'preview'}
+            onClose={() =>
+              mobileId === 'library'
+                ? useEditor.setState({ mobilePanel: false })
+                : useEditor.setState({ inspectorOpen: false })
+            }
+          >
+            {contents[mobileId]}
+          </Pane>
+        </div>
+        {visible.timeline && (
+          <div className="mobile-timeline-pane">
+            <Pane id="timeline" actions={<TimelineControls />}>
+              <Timeline />
+            </Pane>
+          </div>
+        )}
+      </div>
+    );
+  }
+  const upperIds = (['library', 'preview', 'inspector'] as PanelId[]).filter(
+    (id) => visible[id],
+  );
+  const columnKey = `desktop:${upperIds.join('|')}`;
+  const rowKey = `rows:${upperIds.length > 0}:${visible.timeline}`;
   return (
     <div className="resizable-workspace" aria-busy={!ready}>
       {!upperIds.length && !visible.timeline ? (
