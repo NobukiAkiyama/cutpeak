@@ -1257,6 +1257,10 @@ button:hover {
     height: 32px;
   }
   .tool-rail [role='tablist'] {
+    position: static;
+    top: auto;
+    left: auto;
+    transform: none;
     flex: 1 1 auto;
     min-width: 0;
     justify-content: stretch;
