@@ -1256,4 +1256,30 @@ button:hover {
   .mobile-workspace .preview-panel > .panel-heading {
     height: 32px;
   }
+  .tool-rail [role='tablist'] {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: stretch;
+  }
+  .tool-rail [role='tab'] {
+    flex: 1 1 0;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .tool-rail [role='tab'] span,
+  .tool-rail .mobile-inspector-button span {
+    font-size: 10px;
+    letter-spacing: -0.2px;
+    white-space: nowrap;
+  }
+  .tool-rail .mobile-inspector-button {
+    flex: 0 0 52px;
+    width: 52px !important;
+    min-width: 52px;
+    padding-left: 0;
+    padding-right: 0;
+  }
 }
