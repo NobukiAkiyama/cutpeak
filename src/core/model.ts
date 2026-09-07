@@ -76,6 +76,7 @@ export interface Clip {
   fadeOutFrames: number;
   transition: 'none' | 'fade' | 'dissolve';
   transitionFrames: number;
+  audioDetached?: boolean;
 }
 export interface Track {
   id: string;
@@ -120,6 +121,7 @@ export const audible = (p: Project) =>
         (c) =>
           !c.muted &&
           c.volumeDb > -60 &&
+          (c.type === 'audio' || !c.audioDetached) &&
           p.assets.some((a) => a.id === c.assetId && a.hasAudio),
       ),
   );

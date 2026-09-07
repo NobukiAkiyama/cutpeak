@@ -166,6 +166,14 @@ export default function Timeline() {
     );
   }, [frame, playing, zoom]);
   const actionInfo = actions ? findClip(project, actions.id) : undefined;
+  const actionAsset = actionInfo?.clip.assetId
+    ? project.assets.find((asset) => asset.id === actionInfo.clip.assetId)
+    : undefined;
+  const canDetachAudio =
+    !!actionInfo &&
+    actionInfo.clip.type === 'video' &&
+    !!actionAsset?.hasAudio &&
+    !actionInfo.clip.audioDetached;
   const trackActionInfo = trackActions
     ? project.tracks.find((t) => t.id === trackActions.id)
     : undefined;
@@ -891,6 +899,18 @@ export default function Timeline() {
               <Scissors size={17} />
               <span>分割</span>
               <kbd>S</kbd>
+            </button>
+            <button
+              role="menuitem"
+              disabled={!canDetachAudio || actionInfo.track.locked}
+              onClick={() => {
+                if (actions && canDetachAudio)
+                  api.execute({ type: 'clip.detachAudio', clipId: actions.id });
+                setActions(null);
+              }}
+            >
+              <Music2 size={17} />
+              <span>音を分離</span>
             </button>
             <button
               role="menuitem"

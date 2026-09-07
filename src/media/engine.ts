@@ -506,7 +506,13 @@ export class MediaEngine {
       if (t.muted) continue;
       for (const c of t.clips) {
         const a = p.assets.find((a) => a.id === c.assetId);
-        if (!a?.hasAudio || c.muted || !this.entries.has(a.id)) continue;
+        if (
+          !a?.hasAudio ||
+          (c.type !== 'audio' && c.audioDetached) ||
+          c.muted ||
+          !this.entries.has(a.id)
+        )
+          continue;
         const cs = c.startFrame / fps(p),
           ce = (c.startFrame + c.durationFrames) / fps(p),
           from = Math.max(start, cs),

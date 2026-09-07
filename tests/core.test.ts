@@ -163,6 +163,20 @@ describe('non-destructive commands', () => {
     expect(copy.assetId).toBe(c.assetId);
     expect(copy.startFrame).toBe(300);
   });
+  it('detaches video audio into an editable audio clip', () => {
+    const { p, c } = fixture();
+    const result = applyCommand(p, { type: 'clip.detachAudio', clipId: c.id })!;
+    const video = findClip(result.project, c.id)!.clip;
+    const audioTrack = result.project.tracks.find((t) => t.type === 'audio')!;
+    const audio = audioTrack.clips[0];
+    expect(video.audioDetached).toBe(true);
+    expect(audio.type).toBe('audio');
+    expect(audio.id).not.toBe(video.id);
+    expect(audio.assetId).toBe(video.assetId);
+    expect(audio.startFrame).toBe(video.startFrame);
+    expect(audio.durationFrames).toBe(video.durationFrames);
+    expect(audio.sourceInUs).toBe(video.sourceInUs);
+  });
   it('produces semantic changes', () => {
     const { p, c } = fixture();
     const r = applyCommand(p, {

@@ -3,6 +3,7 @@ import {
   findClip,
   frameToUs,
   id,
+  makeTrack,
   validateProject,
   type Asset,
   type Clip,
@@ -60,6 +61,7 @@ export type Command =
   | { type: 'clip.split'; clipId: string; frame: number }
   | { type: 'clip.delete'; clipId: string }
   | { type: 'clip.duplicate'; clipId: string }
+  | { type: 'clip.detachAudio'; clipId: string }
   | {
       type: 'clip.transform';
       clipId: string;
@@ -287,6 +289,31 @@ export function applyCommand(
         copy.startFrame += c.durationFrames;
         t.clips.push(copy);
         description = 'クリップを複製';
+        break;
+      }
+      case 'clip.detachAudio': {
+        const asset = c.assetId
+          ? p.assets.find((asset) => asset.id === c.assetId)
+          : undefined;
+        if (c.type !== 'video' || !asset?.hasAudio)
+          throw Error('音声付き動画ではありません');
+        if (c.audioDetached) throw Error('音声はすでに分離されています');
+
+        let audioTrack = p.tracks.find(
+          (track) => track.type === 'audio' && !track.locked,
+        );
+        if (!audioTrack) {
+          audioTrack = makeTrack('audio', '分離した音声');
+          p.tracks.unshift(audioTrack);
+        }
+        const audio = clone(c);
+        audio.id = id();
+        audio.name = `${c.name}（音声）`;
+        audio.type = 'audio';
+        audio.audioDetached = false;
+        audioTrack.clips.push(audio);
+        c.audioDetached = true;
+        description = '音声を分離';
         break;
       }
       case 'clip.transform': {
