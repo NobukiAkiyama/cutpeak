@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { MousePointer2, Diamond, RotateCcw, LockKeyhole } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { api, useEditor } from '../app/store';
-import { findClip, fps, type TransformKey, type Easing } from '../core/model';
+import {
+  clipSpeed,
+  findClip,
+  fps,
+  type TransformKey,
+  type Easing,
+} from '../core/model';
 import { evaluate, values } from '../core/timeline';
 import { Choice, Field, NumberField, Range } from './controls';
 export default function Inspector() {
@@ -38,7 +44,9 @@ export default function Inspector() {
     local = Math.max(0, frame - c.startFrame),
     v = values(c, frame),
     hasVisual = c.type !== 'audio',
-    asset = project.assets.find((a) => a.id === c.assetId);
+    asset = project.assets.find((a) => a.id === c.assetId),
+    speed = clipSpeed(c),
+    canChangeSpeed = !!asset && (c.type === 'video' || c.type === 'audio');
   const update = (
     patch: Parameters<typeof api.execute>[0] extends never
       ? never
@@ -52,6 +60,14 @@ export default function Inspector() {
       value,
       ...(c.transform[key].keyframes.length ? { frame: local, easing } : {}),
     });
+  const setSpeed = (next: number) => {
+    if (next !== speed)
+      api.execute({
+        type: 'clip.update',
+        clipId: c.id,
+        patch: { speed: next },
+      });
+  };
   const keyframe = (key: TransformKey) => {
     if (c.transform[key].keyframes.some((k) => k.frame === local))
       api.execute({ type: 'keyframe.delete', clipId: c.id, key, frame: local });
@@ -362,8 +378,9 @@ export default function Inspector() {
                 max={
                   asset && c.type !== 'image' && asset.videoCodec !== 'gif'
                     ? Math.floor(
-                        ((asset.durationUs - c.sourceInUs) / 1e6) *
-                          fps(project),
+                        (((asset.durationUs - c.sourceInUs) / 1e6) *
+                          fps(project)) /
+                          speed,
                       )
                     : 108000
                 }
@@ -380,6 +397,37 @@ export default function Inspector() {
               <small className="muted">
                 {(c.durationFrames / fps(project)).toFixed(2)} 秒
               </small>
+              {canChangeSpeed && (
+                <>
+                  <div className="section-label speed-label">再生速度</div>
+                  <fieldset className="speed-presets">
+                    <legend className="sr-only">再生速度のプリセット</legend>
+                    {[0.25, 0.5, 1, 1.5, 2, 4].map((value) => (
+                      <button
+                        type="button"
+                        key={value}
+                        className={speed === value ? 'active' : ''}
+                        aria-pressed={speed === value}
+                        onClick={() => setSpeed(value)}
+                      >
+                        {value}×
+                      </button>
+                    ))}
+                  </fieldset>
+                  <NumberField
+                    label="速度を指定"
+                    value={speed}
+                    min={0.25}
+                    max={4}
+                    step={0.05}
+                    suffix="×"
+                    onChange={setSpeed}
+                  />
+                  <p className="panel-help speed-help">
+                    速度に合わせてクリップの長さを調整します。音声の音程も変化します。
+                  </p>
+                </>
+              )}
             </section>
           </TabsContent>
           <TabsContent value="animation">

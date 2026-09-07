@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { MediaEngine, Lru } from '../src/media/engine';
+import { MediaEngine, Lru, retimeAudio } from '../src/media/engine';
 import { makeProject, makeClip, type Asset } from '../src/core/model';
 function wav(rate = 48000, seconds = 1) {
   const frames = rate * seconds,
@@ -31,6 +31,15 @@ function wav(rate = 48000, seconds = 1) {
 }
 describe('media decoding and audio mixing', () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it('retimes audio samples to match clip speed', () => {
+    const source = [
+      new Float32Array([0, 1, 2, 3, 4]),
+      new Float32Array([0, 1, 2, 3, 4]),
+    ];
+    expect([...retimeAudio(source, 3, 2)[0]]).toEqual([0, 2, 4]);
+    expect([...retimeAudio(source, 5, 0.5)[0]]).toEqual([0, 0.5, 1, 1.5, 2]);
+  });
 
   it('decodes animated GIF frames and follows their timing', async () => {
     const decodedFrames = [

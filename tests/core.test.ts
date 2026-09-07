@@ -87,6 +87,40 @@ describe('non-destructive commands', () => {
       applyCommand(p, { type: 'clip.split', clipId: c.id, frame: 300 }),
     ).toBeNull();
   });
+  it('retimes the clip while preserving its source range', () => {
+    const { p, c } = fixture();
+    const changed = applyCommand(p, {
+      type: 'clip.update',
+      clipId: c.id,
+      patch: { speed: 2 },
+    })!;
+    const clip = findClip(changed.project, c.id)!.clip;
+    expect(clip.durationFrames).toBe(150);
+    expect(sceneAt(changed.project, 30)[0].sourceUs).toBe(2e6);
+
+    const split = applyCommand(changed.project, {
+      type: 'clip.split',
+      clipId: c.id,
+      frame: 75,
+    })!;
+    expect(split.project.tracks[1].clips[1].sourceInUs).toBe(5e6);
+  });
+  it('keeps source offsets integral at fractional frame rates', () => {
+    const { p, c } = fixture();
+    p.fps = { numerator: 30000, denominator: 1001 };
+    c.durationFrames = 299;
+    const changed = applyCommand(p, {
+      type: 'clip.update',
+      clipId: c.id,
+      patch: { speed: 1.5 },
+    })!;
+    const split = applyCommand(changed.project, {
+      type: 'clip.split',
+      clipId: c.id,
+      frame: 1,
+    })!;
+    expect(split.project.tracks[1].clips[1].sourceInUs).toBe(50051);
+  });
   it('trims the source in point and duration', () => {
     const { p, c } = fixture();
     const result = applyCommand(p, {
@@ -393,6 +427,13 @@ describe('project validation and sync', () => {
     p.tracks[1].clips.push(clone(c));
     expect(() => validateProject(p)).toThrow();
   });
+  it('keeps older projects without a speed setting compatible', () => {
+    const { p, c } = fixture();
+    delete c.speed;
+    expect(() => validateProject(p)).not.toThrow();
+    c.speed = 4.1;
+    expect(() => validateProject(p)).toThrow('クリップの時間が不正です');
+  });
   it('rejects zero denominators and unreasonable resolutions', () => {
     const p = makeProject();
     p.fps.denominator = 0;
@@ -404,7 +445,9 @@ describe('project validation and sync', () => {
   it('rejects projects without tracks or with missing asset references', () => {
     const p = makeProject();
     p.tracks = [];
-    expect(() => validateProject(p)).toThrow('対応していないプロジェクト形式です');
+    expect(() => validateProject(p)).toThrow(
+      '対応していないプロジェクト形式です',
+    );
 
     const { p: withClip, c } = fixture();
     c.assetId = 'missing-asset';

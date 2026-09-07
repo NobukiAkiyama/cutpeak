@@ -34,10 +34,11 @@ import {
 } from 'lucide-react';
 import { api, useEditor, importFiles } from '../app/store';
 import {
+  clipSpeed,
   endFrame,
   fps,
-  frameToUs,
   makeTrack,
+  timelineFramesToSourceUs,
   findClip,
   type Clip,
   type Track,
@@ -188,8 +189,7 @@ export default function Timeline() {
     !!actionInfo &&
     !actionInfo.track.locked &&
     frame > actionInfo.clip.startFrame &&
-    frame <
-      actionInfo.clip.startFrame + actionInfo.clip.durationFrames;
+    frame < actionInfo.clip.startFrame + actionInfo.clip.durationFrames;
   function openActions(
     c: Clip,
     at: number,
@@ -415,7 +415,8 @@ export default function Timeline() {
         );
         const min =
           asset && c.type !== 'image' && asset.videoCodec !== 'gif'
-            ? c.startFrame - Math.floor((c.sourceInUs / 1e6) * fps(project))
+            ? c.startFrame -
+              Math.floor(((c.sourceInUs / 1e6) * fps(project)) / clipSpeed(c))
             : 0;
         start = Math.max(min, start);
         const shift = start - c.startFrame;
@@ -425,7 +426,10 @@ export default function Timeline() {
             clipId: c.id,
             startFrame: start,
             durationFrames: c.durationFrames - shift,
-            sourceInUs: Math.max(0, c.sourceInUs + frameToUs(shift, project)),
+            sourceInUs: Math.max(
+              0,
+              c.sourceInUs + timelineFramesToSourceUs(shift, project, c),
+            ),
           },
         ]);
       } else {
@@ -438,7 +442,8 @@ export default function Timeline() {
             end,
             c.startFrame +
               Math.floor(
-                ((asset.durationUs - c.sourceInUs) / 1e6) * fps(project),
+                (((asset.durationUs - c.sourceInUs) / 1e6) * fps(project)) /
+                  clipSpeed(c),
               ),
           );
         api.preview([
@@ -739,7 +744,19 @@ export default function Timeline() {
                             <div
                               className="clip-storyboard"
                               style={{
-                                width: `${100 / Math.max(0.001, Math.min(1, ((c.durationFrames / fps(project)) * 1e6) / a.durationUs))}%`,
+                                width: `${
+                                  100 /
+                                  Math.max(
+                                    0.001,
+                                    Math.min(
+                                      1,
+                                      ((c.durationFrames / fps(project)) *
+                                        1e6 *
+                                        clipSpeed(c)) /
+                                        a.durationUs,
+                                    ),
+                                  )
+                                }%`,
                                 transform: `translateX(-${Math.min(1, c.sourceInUs / a.durationUs) * 100}%)`,
                               }}
                             >
@@ -765,7 +782,7 @@ export default function Timeline() {
                             className="clip-waveform"
                             width="100%"
                             height="28"
-                            viewBox={`${(c.sourceInUs / a.durationUs) * a.waveform.length} 0 ${Math.max(1, (((c.durationFrames / fps(project)) * 1e6) / a.durationUs) * a.waveform.length)} 30`}
+                            viewBox={`${(c.sourceInUs / a.durationUs) * a.waveform.length} 0 ${Math.max(1, (((c.durationFrames / fps(project)) * 1e6 * clipSpeed(c)) / a.durationUs) * a.waveform.length)} 30`}
                             preserveAspectRatio="none"
                           >
                             {a.waveform.map((n, i) => (

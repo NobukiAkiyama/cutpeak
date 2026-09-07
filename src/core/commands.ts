@@ -1,8 +1,11 @@
 import {
   clone,
+  clipSourceDurationUs,
+  clipSpeed,
   findClip,
   frameToUs,
   id,
+  timelineFramesToSourceUs,
   makeTrack,
   validateProject,
   type Asset,
@@ -47,6 +50,7 @@ export type Command =
           | 'fadeOutFrames'
           | 'transition'
           | 'transitionFrames'
+          | 'speed'
         >
       >;
     }
@@ -99,6 +103,7 @@ const label: Record<string, string> = {
   transition: 'トランジション',
   fadeInFrames: 'フェードイン',
   fadeOutFrames: 'フェードアウト',
+  speed: '速度',
 };
 function describe(v: unknown): string {
   if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
@@ -195,10 +200,18 @@ export function applyCommand(
         description = Object.entries(cmd.patch)
           .map(
             ([k, v]) =>
-              `${label[k] || k}: ${describe(c[k as keyof Clip])} → ${describe(v)}`,
+              `${label[k] || k}: ${describe(k === 'speed' ? clipSpeed(c) : c[k as keyof Clip])} → ${describe(v)}`,
           )
           .join('、');
+        const oldSpeed = clipSpeed(c);
         Object.assign(c, clone(cmd.patch));
+        if (cmd.patch.speed !== undefined && c.assetId && c.type !== 'image') {
+          c.durationFrames = Math.max(
+            1,
+            Math.round((c.durationFrames * oldSpeed) / clipSpeed(c)),
+          );
+          description += `、長さを ${c.durationFrames} フレームへ調整`;
+        }
         break;
       case 'clip.move': {
         const destination = cmd.trackId
@@ -235,7 +248,7 @@ export function applyCommand(
           if (other.startFrame >= end) continue;
           const offset = end - other.startFrame;
           trimKeys(other, offset, other.durationFrames - offset);
-          other.sourceInUs += frameToUs(offset, p);
+          other.sourceInUs += timelineFramesToSourceUs(offset, p, other);
           other.startFrame = end;
           other.durationFrames -= offset;
         }
@@ -252,7 +265,7 @@ export function applyCommand(
       case 'clip.trim': {
         const offset = Math.round(
           ((cmd.sourceInUs - c.sourceInUs) * p.fps.numerator) /
-            (1e6 * p.fps.denominator),
+            (1e6 * p.fps.denominator * clipSpeed(c)),
         );
         trimKeys(c, offset, cmd.durationFrames);
         description = `長さ ${c.durationFrames} → ${cmd.durationFrames} フレーム`;
@@ -268,7 +281,7 @@ export function applyCommand(
         right.id = id();
         right.startFrame = cmd.frame;
         right.durationFrames = c.durationFrames - n;
-        right.sourceInUs += frameToUs(n, p);
+        right.sourceInUs += timelineFramesToSourceUs(n, p, right);
         trimKeys(right, n, right.durationFrames);
         trimKeys(c, 0, n);
         c.durationFrames = n;
@@ -346,7 +359,7 @@ export function applyCommand(
       if (
         asset &&
         asset.videoCodec !== 'gif' &&
-        c.sourceInUs + frameToUs(c.durationFrames, p) >
+        c.sourceInUs + clipSourceDurationUs(c, p) >
           asset.durationUs + frameToUs(1, p)
       )
         throw Error('素材の長さを超えています');

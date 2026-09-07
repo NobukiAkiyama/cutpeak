@@ -619,6 +619,38 @@ h3 {
   word-break: break-all;
   color: #c2ccda;
 }
+.speed-label {
+  margin-top: 20px;
+}
+.speed-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin: 8px 0 10px;
+  min-inline-size: 0;
+  border: 0;
+  padding: 0;
+}
+.speed-presets button {
+  min-height: 30px;
+  padding: 4px;
+  background: #252b34;
+  border: 1px solid #3a4552;
+  color: #b5c0cf;
+  font: 12px var(--font-geist-mono);
+}
+.speed-presets button:hover {
+  border-color: #6d58a2;
+  color: #e1d6fa;
+}
+.speed-presets button.active {
+  background: #4c3475;
+  border-color: #a67bef;
+  color: #fff;
+}
+.speed-help {
+  margin-bottom: 0;
+}
 .color-row {
   display: flex;
   gap: 3px;

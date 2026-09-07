@@ -65,6 +65,8 @@ export interface Clip {
   startFrame: number;
   durationFrames: number;
   sourceInUs: number;
+  /** Source-time multiplier. Omitted in older projects and treated as 1x. */
+  speed?: number;
   transform: Transform;
   crop: { left: number; top: number; right: number; bottom: number };
   text?: string;
@@ -106,6 +108,14 @@ export const clone = <T>(v: T): T => structuredClone(v);
 export const fps = (p: Project) => p.fps.numerator / p.fps.denominator;
 export const frameToUs = (f: number, p: Project) =>
   Math.round((f * 1_000_000 * p.fps.denominator) / p.fps.numerator);
+export const clipSpeed = (c: Pick<Clip, 'speed'>) => c.speed ?? 1;
+export const timelineFramesToSourceUs = (
+  frames: number,
+  p: Project,
+  c: Pick<Clip, 'speed'>,
+) => Math.round(frameToUs(frames, p) * clipSpeed(c));
+export const clipSourceDurationUs = (c: Clip, p: Project) =>
+  timelineFramesToSourceUs(c.durationFrames, p, c);
 export const secondsToFrame = (s: number, p: Project) => Math.round(s * fps(p));
 export const endFrame = (p: Project) =>
   Math.max(
@@ -209,6 +219,7 @@ export function makeClip(
         ? Math.max(1, Math.floor((asset.durationUs / 1e6) * fps(p)))
         : Math.round(fps(p) * 5),
     sourceInUs: 0,
+    speed: 1,
     transform: defaultTransform(p),
     crop: { left: 0, top: 0, right: 0, bottom: 0 },
     text:
@@ -305,6 +316,8 @@ export function validateProject(value: unknown): asserts value is Project {
         c.durationFrames < 1 ||
         !integer(c.sourceInUs) ||
         c.sourceInUs < 0 ||
+        (c.speed !== undefined &&
+          (!finite(c.speed) || c.speed < 0.25 || c.speed > 4)) ||
         !clipKinds.includes(c.type)
       )
         throw Error('クリップの時間が不正です');

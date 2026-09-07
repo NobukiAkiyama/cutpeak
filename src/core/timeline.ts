@@ -3,6 +3,7 @@ import {
   type Clip,
   type Project,
   type TransformKey,
+  clipSpeed,
   fps,
 } from './model';
 export function evaluate(a: Animatable, frame: number): number {
@@ -81,7 +82,9 @@ export function sceneAt(p: Project, frame: number) {
           clip: c,
           transform: values(c, frame),
           alpha,
-          sourceUs: c.sourceInUs + ((frame - c.startFrame) * 1e6) / fps(p),
+          sourceUs:
+            c.sourceInUs +
+            (((frame - c.startFrame) * 1e6) / fps(p)) * clipSpeed(c),
         };
       });
     });

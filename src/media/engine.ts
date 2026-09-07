@@ -8,13 +8,33 @@ import {
   type InputAudioTrack,
   type WrappedCanvas,
 } from 'mediabunny';
-import { type Asset, type Project, fps } from '../core/model';
+import { clipSpeed, type Asset, type Project, fps } from '../core/model';
 import { audioGain, sceneAt } from '../core/timeline';
 import { canvasOf } from '../render/renderer';
 
 export const DEFAULT_WAVEFORM_BINS = 320;
 export const VIDEO_THUMBNAIL_COUNT = 16;
 const AUDIO_DECODE_PADDING = 0.1;
+
+export function retimeAudio(
+  channels: Float32Array[],
+  outputFrames: number,
+  speed: number,
+) {
+  return channels.map((input) => {
+    const output = new Float32Array(outputFrames);
+    if (!input.length) return output;
+    for (let i = 0; i < output.length; i++) {
+      const position = Math.min(input.length - 1, i * speed);
+      const index = Math.floor(position);
+      const mix = position - index;
+      output[i] =
+        input[index] * (1 - mix) +
+        input[Math.min(index + 1, input.length - 1)] * mix;
+    }
+    return output;
+  });
+}
 
 async function encodeBitmap(
   bitmap: ImageBitmap,
@@ -272,7 +292,10 @@ export class MediaEngine {
   async metadata(assetId: string): Promise<Asset> {
     const e = this.entries.get(assetId)!;
     const width =
-        e.bitmap?.width || e.gif?.width || (await e.video?.getDisplayWidth()) || 0,
+        e.bitmap?.width ||
+        e.gif?.width ||
+        (await e.video?.getDisplayWidth()) ||
+        0,
       height =
         e.bitmap?.height ||
         e.gif?.height ||
@@ -316,7 +339,11 @@ export class MediaEngine {
       width,
       height,
       hasAudio: !!e.audio,
-      videoCodec: e.gif ? 'gif' : e.video ? String(await e.video.getCodec()) : undefined,
+      videoCodec: e.gif
+        ? 'gif'
+        : e.video
+          ? String(await e.video.getCodec())
+          : undefined,
       audioCodec: e.audio ? String(await e.audio.getCodec()) : undefined,
       thumbnail,
       thumbnails,
@@ -374,9 +401,7 @@ export class MediaEngine {
       const cached = this.frames.get(key);
       if (cached) return createImageBitmap(cached);
       const localUs =
-        e.gif.durationUs > 0
-          ? Math.max(0, sourceUs) % e.gif.durationUs
-          : 0;
+        e.gif.durationUs > 0 ? Math.max(0, sourceUs) % e.gif.durationUs : 0;
       let frameIndex = e.gif.frames.length - 1;
       for (let i = 0; i < e.gif.frames.length; i++) {
         const frame = e.gif.frames[i];
@@ -389,7 +414,10 @@ export class MediaEngine {
       try {
         const bitmap = await createImageBitmap(decoded.image, {
           resizeWidth: w,
-          resizeHeight: Math.max(1, Math.round((e.gif.height * w) / e.gif.width)),
+          resizeHeight: Math.max(
+            1,
+            Math.round((e.gif.height * w) / e.gif.width),
+          ),
           resizeQuality: 'high',
         });
         this.frames.set(key, bitmap);
@@ -538,15 +566,17 @@ export class MediaEngine {
           to = Math.min(start + duration, ce);
         if (to <= from) continue;
         const count = Math.round((to - from) * rate),
-          key = `${a.id}:${c.sourceInUs}:${from - cs}:${count}`;
+          speed = clipSpeed(c),
+          key = `${a.id}:${c.sourceInUs}:${from - cs}:${count}:${speed}`;
         let channels = this.chunks.get(key);
         if (!channels) {
-          channels = await this.audioRange(
+          const source = await this.audioRange(
             a.id,
-            c.sourceInUs / 1e6 + from - cs,
-            to - from,
+            c.sourceInUs / 1e6 + (from - cs) * speed,
+            (to - from) * speed,
             rate,
           );
+          channels = speed === 1 ? source : retimeAudio(source, count, speed);
           this.chunks.set(key, channels);
         }
         const offset = Math.round((from - start) * rate);
@@ -559,11 +589,11 @@ export class MediaEngine {
     }
     let peak = 0;
     for (const ch of out)
-      for (let i = 0; i < ch.length; i++) peak = Math.max(peak, Math.abs(ch[i]));
+      for (let i = 0; i < ch.length; i++)
+        peak = Math.max(peak, Math.abs(ch[i]));
     if (peak > 0.98) {
       const gain = 0.98 / peak;
-      for (const ch of out)
-        for (let i = 0; i < ch.length; i++) ch[i] *= gain;
+      for (const ch of out) for (let i = 0; i < ch.length; i++) ch[i] *= gain;
     }
     return out;
   }
