@@ -1236,19 +1236,23 @@ button:hover {
     color: #c2a0f9 !important;
   }
   .tool-rail [role='tablist'] {
-    position: static;
+    position: static !important;
     top: auto;
     left: auto;
-    transform: none;
+    transform: none !important;
     flex: 1 1 auto;
     min-width: 0;
     justify-content: stretch;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
   }
   .tool-rail [role='tab'] {
-    flex: 1 1 0;
+    flex: none;
     width: auto !important;
     min-width: 0 !important;
     max-width: none;
+    overflow: hidden;
   }
   .tool-rail [role='tab'] span,
   .tool-rail .mobile-inspector-button span {
@@ -1258,6 +1262,7 @@ button:hover {
     flex: 0 0 70px;
     width: 70px !important;
     min-width: 70px;
+    overflow: hidden;
   }
 }
 
