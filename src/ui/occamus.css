@@ -1316,3 +1316,37 @@ button:hover {
     padding-right: 0;
   }
 }
+
+/* Keep every mobile tool equally wide, including the standalone edit button. */
+@media (max-width: 850px) {
+  .tool-rail {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .tool-rail [role='tablist'] {
+    display: contents;
+  }
+  .tool-rail [role='tab'],
+  .tool-rail .mobile-inspector-button {
+    grid-row: 1;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none;
+    flex: none;
+  }
+  .tool-rail .spacer,
+  .tool-rail .rail-settings {
+    display: none !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .tool-rail {
+    gap: 2px;
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+}
