@@ -1235,6 +1235,30 @@ button:hover {
     background: #282033 !important;
     color: #c2a0f9 !important;
   }
+  .tool-rail [role='tablist'] {
+    position: static;
+    top: auto;
+    left: auto;
+    transform: none;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: stretch;
+  }
+  .tool-rail [role='tab'] {
+    flex: 1 1 0;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none;
+  }
+  .tool-rail [role='tab'] span,
+  .tool-rail .mobile-inspector-button span {
+    white-space: nowrap;
+  }
+  .tool-rail .mobile-inspector-button {
+    flex: 0 0 70px;
+    width: 70px !important;
+    min-width: 70px;
+  }
 }
 
 @media (max-width: 600px) {
