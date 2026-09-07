@@ -275,6 +275,7 @@ export async function hydrateMedia() {
   media = client;
   previous.dispose();
   const offline: string[] = [];
+  let enriched = false;
   for (const a of s.project.assets) {
     let file = await getAsset(projectId, a.id);
     if (!file) {
@@ -294,10 +295,17 @@ export async function hydrateMedia() {
       continue;
     }
     try {
-      await client.register(
+      const metadata = await client.register(
         a.id,
         new File([file], a.name, { type: a.mime || file.type }),
       );
+      if (
+        metadata.thumbnails?.length &&
+        (!a.thumbnails || a.thumbnails.length < metadata.thumbnails.length)
+      ) {
+        a.thumbnails = metadata.thumbnails;
+        enriched = true;
+      }
     } catch {
       offline.push(a.id);
     }
@@ -308,7 +316,8 @@ export async function hydrateMedia() {
   )
     useEditor.setState({
       offline,
-      revision: useEditor.getState().revision + 1,
+      project: useEditor.getState().editor.project,
+      revision: useEditor.getState().revision + 1 + (enriched ? 1 : 0),
     });
 }
 export async function openProject(state: SavedProject) {

@@ -1355,6 +1355,18 @@ h3 {
   opacity: 0.48;
   pointer-events: none;
 }
+.clip-storyboard {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: flex;
+  max-width: none;
+}
+.clip-storyboard img {
+  display: block;
+  flex: 0 0 auto;
+  height: 100%;
+  object-fit: cover;
+}
 .clip-audio .clip-thumbnails {
   display: none;
 }

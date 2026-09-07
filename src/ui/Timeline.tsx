@@ -734,12 +734,33 @@ export default function Timeline() {
                               ? { backgroundImage: `url(${a.thumbnail})` }
                               : undefined
                           }
-                        />
+                        >
+                          {a?.thumbnails?.length ? (
+                            <div
+                              className="clip-storyboard"
+                              style={{
+                                width: `${100 / Math.max(0.001, Math.min(1, ((c.durationFrames / fps(project)) * 1e6) / a.durationUs))}%`,
+                                transform: `translateX(-${Math.min(1, c.sourceInUs / a.durationUs) * 100}%)`,
+                              }}
+                            >
+                              {a.thumbnails.map((thumbnail, i) => (
+                                <img
+                                  key={i}
+                                  src={thumbnail}
+                                  alt=""
+                                  style={{
+                                    width: `${100 / a.thumbnails!.length}%`,
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
                         <div className="clip-title">
                           <ClipIcon size={11} />
                           <span>{c.text || c.name}</span>
                         </div>
-                        {a?.waveform?.length ? (
+                        {c.type === 'audio' && a?.waveform?.length ? (
                           <svg
                             className="clip-waveform"
                             width="100%"

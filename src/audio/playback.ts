@@ -74,8 +74,12 @@ export class Playback {
   private schedule(ch: Float32Array[], offset: number) {
     const ctx = this.context!,
       buffer = ctx.createBuffer(2, ch[0].length, 48000);
-    buffer.copyToChannel(ch[0] as Float32Array<ArrayBuffer>, 0);
-    buffer.copyToChannel(ch[1] as Float32Array<ArrayBuffer>, 1);
+    const left = new Float32Array(ch[0].length),
+      right = new Float32Array(ch[1].length);
+    left.set(ch[0]);
+    right.set(ch[1]);
+    buffer.copyToChannel(left, 0);
+    buffer.copyToChannel(right, 1);
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.connect(this.output!);

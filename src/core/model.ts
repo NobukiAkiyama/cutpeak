@@ -53,6 +53,7 @@ export interface Asset {
   videoCodec?: string;
   audioCodec?: string;
   thumbnail?: string;
+  thumbnails?: string[];
   waveform?: number[];
   offline?: boolean;
 }

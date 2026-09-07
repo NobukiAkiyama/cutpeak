@@ -100,12 +100,41 @@ describe('media decoding and audio mixing', () => {
     );
     e.dispose();
   });
+  it('decodes padding around requested audio to preserve codec history', async () => {
+    const samples = vi.fn(async function* (start: number, end: number) {
+      expect(start).toBeCloseTo(9.9);
+      expect(end).toBeCloseTo(10.6);
+      if (start > end) yield undefined;
+    });
+    const e = new MediaEngine();
+    (
+      e as unknown as {
+        entries: Map<string, unknown>;
+      }
+    ).entries.set('compressed', {
+      file: new File([], 'compressed.m4a', { type: 'audio/mp4' }),
+      audio: { getFirstTimestamp: async () => 0 },
+      audioSink: { samples },
+      canvases: new Map(),
+      firstTimestamp: 0,
+      duration: 20,
+    });
+    await e.audioRange('compressed', 10, 0.5);
+    expect(samples).toHaveBeenCalledOnce();
+    e.dispose();
+  });
   it('generates an actual waveform from sample peaks', async () => {
     const e = new MediaEngine();
     await e.register('tone', wav());
     const peaks = await e.waveform('tone', 40);
     expect(peaks).toHaveLength(40);
     expect(peaks.every((v) => v > 0.4 && v < 0.5)).toBe(true);
+    e.dispose();
+  });
+  it('uses a detailed waveform by default', async () => {
+    const e = new MediaEngine();
+    await e.register('tone', wav());
+    expect(await e.waveform('tone')).toHaveLength(320);
     e.dispose();
   });
   it('mixes overlapping tracks, applies gain and preserves silence', async () => {
@@ -136,6 +165,33 @@ describe('media decoding and audio mixing', () => {
     );
     p.tracks[2].muted = true;
     expect((await e.mix(p, 0, 1))[0].every((v) => v === 0)).toBe(true);
+    e.dispose();
+  });
+  it('limits summed audio without hard clipping', async () => {
+    const e = new MediaEngine();
+    await e.register('tone', wav());
+    const p = makeProject();
+    const a: Asset = {
+      id: 'tone',
+      name: 'tone.wav',
+      kind: 'audio',
+      mime: 'audio/wav',
+      size: 96044,
+      durationUs: 1e6,
+      firstTimestampUs: 0,
+      width: 0,
+      height: 0,
+      hasAudio: true,
+    };
+    p.assets.push(a);
+    for (let i = 0; i < 2; i++) {
+      const c = makeClip(p, 'audio', 0, a);
+      c.volumeDb = 6;
+      p.tracks[2].clips.push(c);
+    }
+    const mixed = await e.mix(p, 0, 0.1);
+    expect(Math.max(...mixed[0])).toBeLessThanOrEqual(0.9801);
+    expect(Math.min(...mixed[0])).toBeGreaterThanOrEqual(-0.9801);
     e.dispose();
   });
   it('closes least recently used frames and keeps recently accessed entries', () => {

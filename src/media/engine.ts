@@ -11,6 +11,49 @@ import {
 import { type Asset, type Project, fps } from '../core/model';
 import { audioGain, sceneAt } from '../core/timeline';
 import { canvasOf } from '../render/renderer';
+
+export const DEFAULT_WAVEFORM_BINS = 320;
+export const VIDEO_THUMBNAIL_COUNT = 16;
+const AUDIO_DECODE_PADDING = 0.1;
+
+async function encodeBitmap(
+  bitmap: ImageBitmap,
+  width: number,
+  height: number,
+) {
+  const canvas = canvasOf(width, height);
+  const ctx = canvas.getContext('2d') as
+    | CanvasRenderingContext2D
+    | OffscreenCanvasRenderingContext2D;
+  ctx.fillStyle = '#111318';
+  ctx.fillRect(0, 0, width, height);
+  const ratio = Math.min(width / bitmap.width, height / bitmap.height);
+  const drawWidth = bitmap.width * ratio;
+  const drawHeight = bitmap.height * ratio;
+  ctx.drawImage(
+    bitmap,
+    (width - drawWidth) / 2,
+    (height - drawHeight) / 2,
+    drawWidth,
+    drawHeight,
+  );
+  const blob =
+    'convertToBlob' in canvas
+      ? await canvas.convertToBlob({ type: 'image/webp', quality: 0.7 })
+      : await new Promise<Blob>((resolve, reject) =>
+          canvas.toBlob(
+            (value) =>
+              value ? resolve(value) : reject(Error('画像を生成できません')),
+            'image/webp',
+            0.7,
+          ),
+        );
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let raw = '';
+  for (const byte of bytes) raw += String.fromCharCode(byte);
+  return `data:image/webp;base64,${btoa(raw)}`;
+}
+
 export class Lru<T> {
   private map = new Map<string, T>();
   constructor(
@@ -228,12 +271,6 @@ export class MediaEngine {
   }
   async metadata(assetId: string): Promise<Asset> {
     const e = this.entries.get(assetId)!;
-    const thumb = canvasOf(240, 135),
-      ctx = thumb.getContext('2d') as
-        | CanvasRenderingContext2D
-        | OffscreenCanvasRenderingContext2D;
-    ctx.fillStyle = '#111318';
-    ctx.fillRect(0, 0, 240, 135);
     const width =
         e.bitmap?.width || e.gif?.width || (await e.video?.getDisplayWidth()) || 0,
       height =
@@ -241,50 +278,30 @@ export class MediaEngine {
         e.gif?.height ||
         (await e.video?.getDisplayHeight()) ||
         0;
-    if (e.bitmap) {
-      const r = Math.min(240 / width, 135 / height);
-      ctx.drawImage(
-        e.bitmap,
-        (240 - width * r) / 2,
-        (135 - height * r) / 2,
-        width * r,
-        height * r,
-      );
-    } else if (e.gif || e.video) {
-      const b = await this.frame(
-        assetId,
-        Math.round(Math.min(0.2, e.duration / 4) * 1e6),
-        240,
-      );
-      if (b) {
-        const r = Math.min(240 / b.width, 135 / b.height);
-        ctx.drawImage(
-          b,
-          (240 - b.width * r) / 2,
-          (135 - b.height * r) / 2,
-          b.width * r,
-          b.height * r,
-        );
-        b.close();
-      }
-    }
     let thumbnail: string | undefined;
-    if (e.bitmap || e.gif || e.video) {
-      const blob =
-        'convertToBlob' in thumb
-          ? await thumb.convertToBlob({ type: 'image/webp', quality: 0.7 })
-          : await new Promise<Blob>((resolve, reject) =>
-              thumb.toBlob(
-                (b) =>
-                  b ? resolve(b) : reject(Error('サムネイルを生成できません')),
-                'image/webp',
-                0.7,
-              ),
-            );
-      const bytes = new Uint8Array(await blob.arrayBuffer());
-      let raw = '';
-      for (const byte of bytes) raw += String.fromCharCode(byte);
-      thumbnail = `data:image/webp;base64,${btoa(raw)}`;
+    const preview = await this.frame(
+      assetId,
+      Math.round(Math.min(0.2, e.duration / 4) * 1e6),
+      240,
+    );
+    if (preview) {
+      thumbnail = await encodeBitmap(preview, 240, 135);
+      preview.close();
+    }
+    let thumbnails: string[] | undefined;
+    if (e.video && e.duration > 0) {
+      thumbnails = [];
+      for (let i = 0; i < VIDEO_THUMBNAIL_COUNT; i++) {
+        const frame = await this.frame(
+          assetId,
+          ((i + 0.5) / VIDEO_THUMBNAIL_COUNT) * e.duration * 1e6,
+          160,
+        );
+        if (!frame) continue;
+        thumbnails.push(await encodeBitmap(frame, 160, 90));
+        frame.close();
+      }
+      if (!thumbnails.length) thumbnails = undefined;
     }
     return {
       id: assetId,
@@ -302,9 +319,10 @@ export class MediaEngine {
       videoCodec: e.gif ? 'gif' : e.video ? String(await e.video.getCodec()) : undefined,
       audioCodec: e.audio ? String(await e.audio.getCodec()) : undefined,
       thumbnail,
+      thumbnails,
     };
   }
-  async waveform(assetId: string, bins = 160) {
+  async waveform(assetId: string, bins = DEFAULT_WAVEFORM_BINS) {
     const e = this.entries.get(assetId);
     if (!e?.audioSink || !e.duration) return [];
     const out = Array.from({ length: bins }, () => 0);
@@ -464,9 +482,10 @@ export class MediaEngine {
     const e = this.entries.get(assetId);
     if (!e?.audioSink) return out;
     const absStart = start + e.firstTimestamp;
+    const firstTimestamp = await e.audio!.getFirstTimestamp();
     for await (const sample of e.audioSink.samples(
-      Math.max(absStart, await e.audio!.getFirstTimestamp()),
-      absStart + duration,
+      Math.max(firstTimestamp, absStart - AUDIO_DECODE_PADDING),
+      absStart + duration + AUDIO_DECODE_PADDING,
     )) {
       try {
         const begin = Math.max(
@@ -538,9 +557,14 @@ export class MediaEngine {
         }
       }
     }
+    let peak = 0;
     for (const ch of out)
-      for (let i = 0; i < ch.length; i++)
-        ch[i] = Math.max(-1, Math.min(1, ch[i]));
+      for (let i = 0; i < ch.length; i++) peak = Math.max(peak, Math.abs(ch[i]));
+    if (peak > 0.98) {
+      const gain = 0.98 / peak;
+      for (const ch of out)
+        for (let i = 0; i < ch.length; i++) ch[i] *= gain;
+    }
     return out;
   }
   async sceneFrames(p: Project, frame: number, width: number) {

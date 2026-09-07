@@ -105,6 +105,61 @@ describe('playback cancellation', () => {
     player.dispose();
   });
 
+  it('copies shared audio channels before scheduling them', async () => {
+    const copied: ArrayBuffer[] = [];
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        currentTime = 0;
+        destination = {};
+        resume = async () => {};
+        close = async () => {};
+        createBuffer = () => ({
+          duration: 0.5,
+          copyToChannel: (channel: Float32Array) =>
+            copied.push(channel.buffer as ArrayBuffer),
+        });
+        createBufferSource = () => ({
+          buffer: null,
+          connect: () => {},
+          start: () => {},
+          stop: () => {},
+          disconnect: () => {},
+          onended: undefined,
+        });
+      },
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+    const p = makeProject();
+    const a: Asset = {
+      id: 'sound',
+      name: 'sound.wav',
+      kind: 'audio',
+      mime: 'audio/wav',
+      size: 1,
+      durationUs: 1e6,
+      firstTimestampUs: 0,
+      width: 0,
+      height: 0,
+      hasAudio: true,
+    };
+    p.assets.push(a);
+    p.tracks[2].clips.push(makeClip(p, 'audio', 0, a));
+    const shared = new SharedArrayBuffer(24000 * Float32Array.BYTES_PER_ELEMENT);
+    const channel = new Float32Array(shared);
+    const player = new Playback(
+      { mix: vi.fn(async () => [channel, channel]) } as unknown as MediaClient,
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
+    await player.play(p, 0);
+    await vi.waitFor(() => expect(copied).toHaveLength(2));
+    expect(copied.every((buffer) => buffer instanceof ArrayBuffer)).toBe(true);
+    player.dispose();
+  });
+
   it('cancels while the first audio buffer is still being decoded', async () => {
     const resume = vi.fn(async () => {}),
       createBuffer = vi.fn();
