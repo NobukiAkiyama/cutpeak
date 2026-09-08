@@ -1,16 +1,33 @@
 import { useState } from 'react';
-import { MousePointer2, Diamond, RotateCcw, LockKeyhole } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Diamond, LockKeyhole, MousePointer2, RotateCcw } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, useEditor } from '../app/store';
 import {
   clipSpeed,
   findClip,
   fps,
-  type TransformKey,
+  type Clip,
   type Easing,
+  type TransformKey,
 } from '../core/model';
 import { evaluate, values } from '../core/timeline';
-import { Choice, Field, NumberField, Range } from './controls';
+import { Choice, Field, NumberField } from './controls';
+import { AudioSection } from './inspector/AudioSection';
+import { TextStyleSection } from './inspector/TextStyleSection';
+import { TimingSection } from './inspector/TimingSection';
+
+const transformKeys: TransformKey[] = [
+  'x',
+  'y',
+  'scaleX',
+  'scaleY',
+  'rotation',
+  'opacity',
+];
+
+const isEasing = (value: string): value is Easing =>
+  ['linear', 'ease-in', 'ease-out', 'ease-in-out'].includes(value);
+
 export default function Inspector() {
   const { project, selected, frame } = useEditor();
   const found = selected ? findClip(project, selected) : null;
@@ -40,90 +57,122 @@ export default function Inspector() {
         </div>
       </>
     );
-  const { clip: c, track } = found,
-    local = Math.max(0, frame - c.startFrame),
-    v = values(c, frame),
-    hasVisual = c.type !== 'audio',
-    asset = project.assets.find((a) => a.id === c.assetId),
-    speed = clipSpeed(c),
-    canChangeSpeed = !!asset && (c.type === 'video' || c.type === 'audio');
-  const update = (
-    patch: Parameters<typeof api.execute>[0] extends never
-      ? never
-      : Partial<typeof c>,
-  ) => api.execute({ type: 'clip.update', clipId: c.id, patch });
+
+  const { clip, track } = found;
+  const local = Math.max(0, frame - clip.startFrame);
+  const currentValues = values(clip, frame);
+  const hasVisual = clip.type !== 'audio';
+  const asset = project.assets.find(
+    (candidate) => candidate.id === clip.assetId,
+  );
+  const speed = clipSpeed(clip);
+  const update = (patch: Partial<Clip>) =>
+    api.execute({ type: 'clip.update', clipId: clip.id, patch });
   const transform = (key: TransformKey, value: number) =>
     api.execute({
       type: 'clip.transform',
-      clipId: c.id,
+      clipId: clip.id,
       key,
       value,
-      ...(c.transform[key].keyframes.length ? { frame: local, easing } : {}),
+      ...(clip.transform[key].keyframes.length ? { frame: local, easing } : {}),
     });
   const setSpeed = (next: number) => {
     if (next !== speed)
       api.execute({
         type: 'clip.update',
-        clipId: c.id,
+        clipId: clip.id,
         patch: { speed: next },
       });
   };
-  const keyframe = (key: TransformKey) => {
-    if (c.transform[key].keyframes.some((k) => k.frame === local))
-      api.execute({ type: 'keyframe.delete', clipId: c.id, key, frame: local });
+  const toggleKeyframe = (key: TransformKey) => {
+    if (
+      clip.transform[key].keyframes.some((keyframe) => keyframe.frame === local)
+    )
+      api.execute({
+        type: 'keyframe.delete',
+        clipId: clip.id,
+        key,
+        frame: local,
+      });
     else
       api.execute({
         type: 'clip.transform',
-        clipId: c.id,
+        clipId: clip.id,
         key,
-        value: evaluate(c.transform[key], local),
+        value: evaluate(clip.transform[key], local),
         frame: local,
         easing,
       });
   };
-  const tf = (
+  const transformField = (
     key: TransformKey,
     label: string,
     min: number,
     max: number,
-    mult = 1,
+    multiplier = 1,
     suffix?: string,
-  ) => (
-    <div className="keyframe-field" key={key}>
-      <NumberField
-        label={label}
-        value={v[key] * mult}
-        min={min}
-        max={max}
-        step={key.startsWith('scale') ? 0.1 : 1}
-        suffix={suffix}
-        onChange={(n) => transform(key, n / mult)}
-      />
-      <button
-        title={`${label} キーフレームを追加・削除`}
-        className={
-          c.transform[key].keyframes.some((k) => k.frame === local)
-            ? 'key-active'
-            : ''
-        }
-        onClick={() => keyframe(key)}
-      >
-        <Diamond
-          size={13}
-          fill={
-            c.transform[key].keyframes.some((k) => k.frame === local)
-              ? 'currentColor'
-              : 'none'
-          }
+  ) => {
+    const active = clip.transform[key].keyframes.some(
+      (keyframe) => keyframe.frame === local,
+    );
+    return (
+      <div className="keyframe-field" key={key}>
+        <NumberField
+          label={label}
+          value={currentValues[key] * multiplier}
+          min={min}
+          max={max}
+          step={key.startsWith('scale') ? 0.1 : 1}
+          suffix={suffix}
+          onChange={(value) => transform(key, value / multiplier)}
         />
-      </button>
-    </div>
-  );
+        <button
+          title={`${label} キーフレームを追加・削除`}
+          className={active ? 'key-active' : ''}
+          onClick={() => toggleKeyframe(key)}
+        >
+          <Diamond size={13} fill={active ? 'currentColor' : 'none'} />
+        </button>
+      </div>
+    );
+  };
+  const resetTransform = () => {
+    const defaults: Record<TransformKey, number> = {
+      x: project.width / 2,
+      y: project.height / 2,
+      scaleX: 1,
+      scaleY: 1,
+      rotation: 0,
+      opacity: 1,
+    };
+    api.begin('変形をリセット');
+    for (const key of transformKeys) transform(key, defaults[key]);
+    api.end();
+  };
+  const updateEasing = (next: string) => {
+    if (!isEasing(next)) return;
+    setEasing(next);
+    api.begin('キーフレームの補間を変更');
+    for (const key of transformKeys) {
+      const animation = clip.transform[key];
+      if (animation.keyframes.some((keyframe) => keyframe.frame === local))
+        api.execute({
+          type: 'clip.transform',
+          clipId: clip.id,
+          key,
+          value: evaluate(animation, local),
+          frame: local,
+          easing: next,
+        });
+    }
+    api.end();
+  };
+
   return (
     <>
       <div className="panel-heading">
-        <span className="selected-name" title={c.name}>
-          {c.name}
+        <span className="selected-name" title={clip.name}>
+          {clip.name}
         </span>
         {track.locked && <LockKeyhole size={15} />}
       </div>
@@ -137,169 +186,17 @@ export default function Inspector() {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="basic">
-            {(c.type === 'text' || c.type === 'caption') && (
-              <section className="inspector-section">
-                <Field label={c.type === 'caption' ? '字幕' : 'テキスト'}>
-                  <textarea
-                    aria-label="テキスト内容"
-                    value={c.text}
-                    rows={3}
-                    onFocus={() => api.begin('テキストを編集')}
-                    onChange={(e) => update({ text: e.target.value })}
-                    onBlur={() => api.end()}
-                  />
-                </Field>
-                <Choice
-                  label="フォント"
-                  value={c.style.font}
-                  options={[
-                    { value: 'sans-serif', label: 'ゴシック' },
-                    { value: 'serif', label: '明朝' },
-                    { value: 'monospace', label: '等幅' },
-                  ]}
-                  onChange={(font) => update({ style: { ...c.style, font } })}
-                />
-                <div className="field-pair">
-                  <NumberField
-                    label="サイズ"
-                    value={c.style.size}
-                    min={8}
-                    max={600}
-                    onChange={(size) => update({ style: { ...c.style, size } })}
-                  />
-                  <Field label="太さ">
-                    <Choice
-                      label="文字の太さ"
-                      value={String(c.style.weight)}
-                      options={[
-                        { value: '400', label: '標準' },
-                        { value: '700', label: '太字' },
-                        { value: '900', label: '極太' },
-                      ]}
-                      onChange={(weight) =>
-                        update({
-                          style: { ...c.style, weight: Number(weight) },
-                        })
-                      }
-                    />
-                  </Field>
-                </div>
-                <div className="field-pair">
-                  <Field label="文字色">
-                    <input
-                      type="color"
-                      aria-label="文字色"
-                      value={c.style.color}
-                      onChange={(e) =>
-                        update({ style: { ...c.style, color: e.target.value } })
-                      }
-                    />
-                  </Field>
-                  <Field label="背景色">
-                    <div className="color-row">
-                      <input
-                        type="color"
-                        aria-label="文字の背景色"
-                        value={c.style.background.slice(0, 7)}
-                        onChange={(e) =>
-                          update({
-                            style: { ...c.style, background: e.target.value },
-                          })
-                        }
-                      />
-                      <button
-                        title="背景を透明にする"
-                        onClick={() =>
-                          update({
-                            style: { ...c.style, background: '#00000000' },
-                          })
-                        }
-                      >
-                        なし
-                      </button>
-                    </div>
-                  </Field>
-                </div>
-                <Choice
-                  label="文字揃え"
-                  value={c.style.align}
-                  options={[
-                    { value: 'left', label: '左揃え' },
-                    { value: 'center', label: '中央揃え' },
-                    { value: 'right', label: '右揃え' },
-                  ]}
-                  onChange={(align) =>
-                    update({ style: { ...c.style, align: align as 'left' } })
-                  }
-                />
-                <div className="field-pair">
-                  <NumberField
-                    label="縁取り"
-                    min={0}
-                    max={30}
-                    value={c.style.strokeWidth}
-                    onChange={(strokeWidth) =>
-                      update({ style: { ...c.style, strokeWidth } })
-                    }
-                  />
-                  <Field label="縁取り色">
-                    <input
-                      type="color"
-                      aria-label="縁取りの色"
-                      value={c.style.stroke}
-                      onChange={(e) =>
-                        update({
-                          style: { ...c.style, stroke: e.target.value },
-                        })
-                      }
-                    />
-                  </Field>
-                </div>
-                <div className="field-pair">
-                  <NumberField
-                    label="行間"
-                    min={0.5}
-                    max={3}
-                    step={0.1}
-                    value={c.style.lineHeight}
-                    onChange={(lineHeight) =>
-                      update({ style: { ...c.style, lineHeight } })
-                    }
-                  />
-                  <NumberField
-                    label="字間"
-                    min={-10}
-                    max={50}
-                    value={c.style.letterSpacing}
-                    onChange={(letterSpacing) =>
-                      update({ style: { ...c.style, letterSpacing } })
-                    }
-                  />
-                </div>
-                {c.type === 'caption' && (
-                  <button
-                    className="secondary full"
-                    onClick={() =>
-                      api.execute({
-                        type: 'caption.style',
-                        trackId: track.id,
-                        style: c.style,
-                      })
-                    }
-                  >
-                    全字幕にスタイルを適用
-                  </button>
-                )}
-              </section>
+            {(clip.type === 'text' || clip.type === 'caption') && (
+              <TextStyleSection clip={clip} track={track} update={update} />
             )}
-            {c.type === 'shape' && (
+            {clip.type === 'shape' && (
               <section className="inspector-section">
                 <Field label="塗りつぶし">
                   <input
                     type="color"
                     aria-label="図形の色"
-                    value={c.color}
-                    onChange={(e) => update({ color: e.target.value })}
+                    value={clip.color}
+                    onChange={(event) => update({ color: event.target.value })}
                   />
                 </Field>
               </section>
@@ -308,48 +205,35 @@ export default function Inspector() {
               <section className="inspector-section">
                 <div className="section-heading">
                   変形
-                  <button
-                    title="変形をリセット"
-                    onClick={() => {
-                      api.begin('変形をリセット');
-                      for (const [key, value] of Object.entries({
-                        x: project.width / 2,
-                        y: project.height / 2,
-                        scaleX: 1,
-                        scaleY: 1,
-                        rotation: 0,
-                        opacity: 1,
-                      }))
-                        transform(key as TransformKey, value);
-                      api.end();
-                    }}
-                  >
+                  <button title="変形をリセット" onClick={resetTransform}>
                     <RotateCcw size={13} />
                   </button>
                 </div>
                 <div className="field-pair">
-                  {tf('x', '位置 X', -10000, 10000)}
-                  {tf('y', '位置 Y', -10000, 10000)}
+                  {transformField('x', '位置 X', -10000, 10000)}
+                  {transformField('y', '位置 Y', -10000, 10000)}
                 </div>
                 <div className="field-pair">
-                  {tf('scaleX', '横倍率', 1, 1000, 100, '%')}
-                  {tf('scaleY', '縦倍率', 1, 1000, 100, '%')}
+                  {transformField('scaleX', '横倍率', 1, 1000, 100, '%')}
+                  {transformField('scaleY', '縦倍率', 1, 1000, 100, '%')}
                 </div>
-                {tf('rotation', '回転', -3600, 3600, 1, '°')}
-                {tf('opacity', '不透明度', 0, 100, 100, '%')}
+                {transformField('rotation', '回転', -3600, 3600, 1, '°')}
+                {transformField('opacity', '不透明度', 0, 100, 100, '%')}
                 <div className="section-label">クロップ</div>
                 <div className="field-pair">
                   {(['left', 'right', 'top', 'bottom'] as const).map(
-                    (key, i) => (
+                    (key, index) => (
                       <NumberField
                         key={key}
-                        label={['左', '右', '上', '下'][i]}
-                        value={c.crop[key] * 100}
+                        label={['左', '右', '上', '下'][index]}
+                        value={clip.crop[key] * 100}
                         min={0}
                         max={49}
                         suffix="%"
-                        onChange={(n) =>
-                          update({ crop: { ...c.crop, [key]: n / 100 } })
+                        onChange={(value) =>
+                          update({
+                            crop: { ...clip.crop, [key]: value / 100 },
+                          })
                         }
                       />
                     ),
@@ -357,78 +241,12 @@ export default function Inspector() {
                 </div>
               </section>
             )}
-            <section className="inspector-section">
-              <div className="section-heading">タイミング</div>
-              <NumberField
-                label="開始フレーム"
-                value={c.startFrame}
-                min={0}
-                onChange={(n) =>
-                  api.execute({
-                    type: 'clip.move',
-                    clipId: c.id,
-                    startFrame: Math.round(n),
-                  })
-                }
-              />
-              <NumberField
-                label="長さ（フレーム）"
-                value={c.durationFrames}
-                min={1}
-                max={
-                  asset && c.type !== 'image' && asset.videoCodec !== 'gif'
-                    ? Math.floor(
-                        (((asset.durationUs - c.sourceInUs) / 1e6) *
-                          fps(project)) /
-                          speed,
-                      )
-                    : 108000
-                }
-                onChange={(n) =>
-                  api.execute({
-                    type: 'clip.trim',
-                    clipId: c.id,
-                    startFrame: c.startFrame,
-                    durationFrames: Math.round(n),
-                    sourceInUs: c.sourceInUs,
-                  })
-                }
-              />
-              <small className="muted">
-                {(c.durationFrames / fps(project)).toFixed(2)} 秒
-              </small>
-              {canChangeSpeed && (
-                <>
-                  <div className="section-label speed-label">再生速度</div>
-                  <fieldset className="speed-presets">
-                    <legend className="sr-only">再生速度のプリセット</legend>
-                    {[0.25, 0.5, 1, 1.5, 2, 4].map((value) => (
-                      <button
-                        type="button"
-                        key={value}
-                        className={speed === value ? 'active' : ''}
-                        aria-pressed={speed === value}
-                        onClick={() => setSpeed(value)}
-                      >
-                        {value}×
-                      </button>
-                    ))}
-                  </fieldset>
-                  <NumberField
-                    label="速度を指定"
-                    value={speed}
-                    min={0.25}
-                    max={4}
-                    step={0.05}
-                    suffix="×"
-                    onChange={setSpeed}
-                  />
-                  <p className="panel-help speed-help">
-                    速度に合わせてクリップの長さを調整します。音声の音程も変化します。
-                  </p>
-                </>
-              )}
-            </section>
+            <TimingSection
+              project={project}
+              clip={clip}
+              asset={asset}
+              setSpeed={setSpeed}
+            />
           </TabsContent>
           <TabsContent value="animation">
             <section className="inspector-section">
@@ -440,12 +258,12 @@ export default function Inspector() {
               </p>
               {hasVisual && (
                 <>
-                  {tf('x', '位置 X', -10000, 10000)}
-                  {tf('y', '位置 Y', -10000, 10000)}
-                  {tf('scaleX', '横倍率', 1, 1000, 100, '%')}
-                  {tf('scaleY', '縦倍率', 1, 1000, 100, '%')}
-                  {tf('rotation', '回転', -3600, 3600, 1, '°')}
-                  {tf('opacity', '不透明度', 0, 100, 100, '%')}
+                  {transformField('x', '位置 X', -10000, 10000)}
+                  {transformField('y', '位置 Y', -10000, 10000)}
+                  {transformField('scaleX', '横倍率', 1, 1000, 100, '%')}
+                  {transformField('scaleY', '縦倍率', 1, 1000, 100, '%')}
+                  {transformField('rotation', '回転', -3600, 3600, 1, '°')}
+                  {transformField('opacity', '不透明度', 0, 100, 100, '%')}
                 </>
               )}
               <Field label="補間">
@@ -458,42 +276,30 @@ export default function Inspector() {
                     { value: 'ease-out', label: 'イーズアウト' },
                     { value: 'ease-in-out', label: 'イーズイン・アウト' },
                   ]}
-                  onChange={(v) => {
-                    setEasing(v as Easing);
-                    api.begin('キーフレームの補間を変更');
-                    for (const [key, a] of Object.entries(c.transform)) {
-                      if (a.keyframes.some((k) => k.frame === local))
-                        api.execute({
-                          type: 'clip.transform',
-                          clipId: c.id,
-                          key: key as TransformKey,
-                          value: evaluate(a, local),
-                          frame: local,
-                          easing: v as Easing,
-                        });
-                    }
-                    api.end();
-                  }}
+                  onChange={updateEasing}
                 />
               </Field>
               <div className="keyframe-list">
                 {Array.from(
                   new Set(
-                    Object.values(c.transform).flatMap((a) =>
-                      a.keyframes.map((k) => k.frame),
+                    Object.values(clip.transform).flatMap((animation) =>
+                      animation.keyframes.map((keyframe) => keyframe.frame),
                     ),
                   ),
                 )
-                  .filter((f) => f >= 0 && f < c.durationFrames)
-                  .sort((a, b) => a - b)
-                  .map((f) => (
+                  .filter(
+                    (keyframe) =>
+                      keyframe >= 0 && keyframe < clip.durationFrames,
+                  )
+                  .sort((left, right) => left - right)
+                  .map((keyframe) => (
                     <button
-                      className={f === local ? 'active' : ''}
-                      key={f}
-                      onClick={() => api.seek(c.startFrame + f)}
+                      className={keyframe === local ? 'active' : ''}
+                      key={keyframe}
+                      onClick={() => api.seek(clip.startFrame + keyframe)}
                     >
                       <Diamond size={11} />
-                      {f} f
+                      {keyframe} f
                     </button>
                   ))}
               </div>
@@ -503,22 +309,29 @@ export default function Inspector() {
                 <div className="section-heading">トランジション</div>
                 <Choice
                   label="トランジション"
-                  value={c.transition}
+                  value={clip.transition}
                   options={[
                     { value: 'none', label: 'なし' },
                     { value: 'fade', label: 'フェード' },
                     { value: 'dissolve', label: 'クロスディゾルブ' },
                   ]}
-                  onChange={(v) => update({ transition: v as 'fade' })}
+                  onChange={(transition) => {
+                    if (
+                      transition === 'none' ||
+                      transition === 'fade' ||
+                      transition === 'dissolve'
+                    )
+                      update({ transition });
+                  }}
                 />
-                {c.transition !== 'none' && (
+                {clip.transition !== 'none' && (
                   <NumberField
                     label="長さ（フレーム）"
-                    value={c.transitionFrames}
+                    value={clip.transitionFrames}
                     min={1}
-                    max={Math.floor(c.durationFrames / 2)}
-                    onChange={(n) =>
-                      update({ transitionFrames: Math.round(n) })
+                    max={Math.floor(clip.durationFrames / 2)}
+                    onChange={(value) =>
+                      update({ transitionFrames: Math.round(value) })
                     }
                   />
                 )}
@@ -529,57 +342,7 @@ export default function Inspector() {
             )}
           </TabsContent>
           <TabsContent value="audio">
-            <section className="inspector-section">
-              <div className="section-heading">音量</div>
-              <NumberField
-                label="音量"
-                suffix="dB"
-                value={c.volumeDb}
-                min={-60}
-                max={12}
-                onChange={(n) => update({ volumeDb: n })}
-              />
-              <Range
-                label="音量を調整"
-                value={c.volumeDb}
-                min={-60}
-                max={12}
-                onStart={() => api.begin('音量を変更')}
-                onChange={(n) => update({ volumeDb: n })}
-                onCommit={() => api.end()}
-              />
-              <button
-                className={c.muted ? 'secondary full active' : 'secondary full'}
-                onClick={() => update({ muted: !c.muted })}
-              >
-                {c.muted ? 'ミュートを解除' : 'ミュート'}
-              </button>
-            </section>
-            <section className="inspector-section">
-              <div className="section-heading">フェード</div>
-              <NumberField
-                label="フェードイン"
-                suffix="秒"
-                value={c.fadeInFrames / fps(project)}
-                min={0}
-                max={c.durationFrames / fps(project)}
-                step={0.1}
-                onChange={(n) =>
-                  update({ fadeInFrames: Math.round(n * fps(project)) })
-                }
-              />
-              <NumberField
-                label="フェードアウト"
-                suffix="秒"
-                value={c.fadeOutFrames / fps(project)}
-                min={0}
-                max={c.durationFrames / fps(project)}
-                step={0.1}
-                onChange={(n) =>
-                  update({ fadeOutFrames: Math.round(n * fps(project)) })
-                }
-              />
-            </section>
+            <AudioSection project={project} clip={clip} update={update} />
           </TabsContent>
         </Tabs>
       </fieldset>

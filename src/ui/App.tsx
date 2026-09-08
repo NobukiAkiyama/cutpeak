@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   Film,
   Type,
@@ -24,16 +24,16 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEditor, bootstrap, api, persistNow, notify } from '../app/store';
 import { endFrame, fps } from '../core/model';
 import { storageMode, requestPersistence } from '../storage/local';
-import { startSyncLoop } from '../sync/controller';
 import { registerWebTools } from '../app/webmcp';
 import Workspace, { WorkspaceMenu } from './Workspace';
 import { usePanelLayout } from './workspace-state';
-import ProjectDialog from './ProjectDialog';
-import HistoryDialog from './HistoryDialog';
-import ExportDialog from './ExportDialog';
-import DriveDialog from './DriveDialog';
-import { completeDriveRedirect } from '../storage/drive';
+import { applyPwaUpdate } from '../app/pwa';
 import { Modal, bytes, Field } from './controls';
+
+const ProjectDialog = lazy(() => import('./ProjectDialog'));
+const HistoryDialog = lazy(() => import('./HistoryDialog'));
+const ExportDialog = lazy(() => import('./ExportDialog'));
+const DriveDialog = lazy(() => import('./DriveDialog'));
 export default function App() {
   const state = useEditor();
   const {
@@ -42,6 +42,7 @@ export default function App() {
     ready,
     busy,
     notice,
+    updateAvailable,
     saveStatus,
     capabilities,
     panel,
@@ -65,7 +66,10 @@ export default function App() {
     );
   useEffect(() => {
     void bootstrap();
-    void completeDriveRedirect()
+    let disposed = false;
+    let stopSync = () => {};
+    void import('../storage/drive')
+      .then(({ completeDriveRedirect }) => completeDriveRedirect())
       .then((completed) => {
         if (completed) {
           notify('Google Drive に接続しました');
@@ -73,8 +77,12 @@ export default function App() {
         }
       })
       .catch((error) => notify((error as Error).message));
-    const stop = startSyncLoop(),
-      unregister = registerWebTools();
+    void import('../sync/controller')
+      .then(({ startSyncLoop }) => {
+        if (!disposed) stopSync = startSyncLoop();
+      })
+      .catch((error) => notify((error as Error).message));
+    const unregister = registerWebTools();
     const network = () => setOnline(navigator.onLine);
     const resize = () => setTablet(window.innerWidth <= 850);
     const offerInstall = (event: Event) => {
@@ -92,7 +100,8 @@ export default function App() {
     window.addEventListener('beforeinstallprompt', offerInstall);
     window.addEventListener('appinstalled', markInstalled);
     return () => {
-      stop();
+      disposed = true;
+      stopSync();
       unregister();
       window.removeEventListener('online', network);
       window.removeEventListener('offline', network);
@@ -133,7 +142,11 @@ export default function App() {
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         if (s.selected)
-          api.execute({ type: 'clip.split', clipId: s.selected, frame: s.frame });
+          api.execute({
+            type: 'clip.split',
+            clipId: s.selected,
+            frame: s.frame,
+          });
         else notify('分割するクリップを選択してください');
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
@@ -344,13 +357,27 @@ export default function App() {
           <span>ショートカット</span>
         </button>
       </footer>
-      {notice && (
-        <output className="toast">
+      {(notice || updateAvailable) && (
+        <output className="toast" aria-live="polite">
           <CheckCircle2 size={17} />
-          <span>{notice}</span>
+          <span>
+            {updateAvailable ? '新しいバージョンを利用できます。' : notice}
+          </span>
+          {updateAvailable && (
+            <button
+              onClick={() => {
+                if (applyPwaUpdate()) return;
+                window.location.reload();
+              }}
+            >
+              更新
+            </button>
+          )}
           <button
             title="通知を閉じる"
-            onClick={() => useEditor.setState({ notice: '' })}
+            onClick={() =>
+              useEditor.setState({ notice: '', updateAvailable: false })
+            }
           >
             <X size={14} />
           </button>
@@ -362,18 +389,31 @@ export default function App() {
           <strong>{busy || '編集環境を準備しています…'}</strong>
         </div>
       )}
-      <ProjectDialog
-        open={modal === 'project'}
-        onClose={() => setModal(null)}
-        onDrive={() => setModal('drive')}
-        onExport={() => setModal('export')}
-      />
-      <HistoryDialog
-        open={modal === 'history'}
-        onClose={() => setModal(null)}
-      />
-      <ExportDialog open={modal === 'export'} onClose={() => setModal(null)} />
-      <DriveDialog open={modal === 'drive'} onClose={() => setModal(null)} />
+      {modal === 'project' && (
+        <Suspense fallback={null}>
+          <ProjectDialog
+            open
+            onClose={() => setModal(null)}
+            onDrive={() => setModal('drive')}
+            onExport={() => setModal('export')}
+          />
+        </Suspense>
+      )}
+      {modal === 'history' && (
+        <Suspense fallback={null}>
+          <HistoryDialog open onClose={() => setModal(null)} />
+        </Suspense>
+      )}
+      {modal === 'export' && (
+        <Suspense fallback={null}>
+          <ExportDialog open onClose={() => setModal(null)} />
+        </Suspense>
+      )}
+      {modal === 'drive' && (
+        <Suspense fallback={null}>
+          <DriveDialog open onClose={() => setModal(null)} />
+        </Suspense>
+      )}
       <Modal
         open={modal === 'settings'}
         onClose={() => setModal(null)}

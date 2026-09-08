@@ -73,17 +73,23 @@ export async function writeFile(
     throw e;
   }
 }
-export async function putAsset(projectId: string, assetId: string, file: File) {
+export async function putAsset(
+  projectId: string,
+  assetId: string,
+  file: File,
+): Promise<'opfs' | 'session'> {
   sessionFiles.set(`${projectId}/${assetId}`, file);
   try {
     const d = await directory(projectId, 'assets');
     await writeFile(d, assetId, file);
+    return 'opfs';
   } catch (e) {
     storageMode = 'compatibility';
     if ((e as DOMException).name === 'QuotaExceededError')
       throw Error(
         '保存容量が不足しています。素材はこのセッションだけで利用できます。',
       );
+    return 'session';
   }
 }
 export async function getAsset(
@@ -100,6 +106,42 @@ export async function getAsset(
   }
 }
 let queue = Promise.resolve();
+
+const generationName =
+  /^state-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.json$/i;
+
+async function readGenerationPointer(
+  dir: FileSystemDirectoryHandle,
+  pointer: 'HEAD' | 'PREVIOUS',
+) {
+  try {
+    const name = await (
+      await (await dir.getFileHandle(pointer)).getFile()
+    ).text();
+    return generationName.test(name) ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readGeneration(
+  dir: FileSystemDirectoryHandle,
+  pointer: 'HEAD' | 'PREVIOUS',
+): Promise<SavedProject | null> {
+  const name = await readGenerationPointer(dir, pointer);
+  if (!name) return null;
+  try {
+    const data = JSON.parse(
+      await (await (await dir.getFileHandle(name)).getFile()).text(),
+    ) as SavedProject;
+    validateProject(data.project);
+    validateRepository(data.repository);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 export function saveLocal(state: SavedProject): Promise<void> {
   const snapshot = structuredClone(state);
   const work = queue
@@ -111,12 +153,12 @@ export function saveLocal(state: SavedProject): Promise<void> {
         const dir = await directory(p.id, 'project');
         const stamp = `state-${crypto.randomUUID()}.json`;
         await writeFile(dir, stamp, JSON.stringify(snapshot));
-        let previous = '';
-        try {
-          previous = await (
-            await (await dir.getFileHandle('HEAD')).getFile()
-          ).text();
-        } catch {}
+        // Preserve the last valid pointer. If HEAD was interrupted or malformed,
+        // the older PREVIOUS generation remains a recovery candidate.
+        const previous =
+          (await readGenerationPointer(dir, 'HEAD')) ||
+          (await readGenerationPointer(dir, 'PREVIOUS')) ||
+          '';
         if (previous) await writeFile(dir, 'PREVIOUS', previous);
         await writeFile(dir, 'HEAD', stamp);
         stored = true;
@@ -171,18 +213,9 @@ export async function loadLocal(
   }
   try {
     const dir = await directory(projectId, 'project');
-    for (const pointer of ['HEAD', 'PREVIOUS']) {
-      try {
-        const name = await (
-          await (await dir.getFileHandle(pointer)).getFile()
-        ).text();
-        const data = JSON.parse(
-          await (await (await dir.getFileHandle(name)).getFile()).text(),
-        ) as SavedProject;
-        validateProject(data.project);
-        validateRepository(data.repository);
-        return data;
-      } catch {}
+    for (const pointer of ['HEAD', 'PREVIOUS'] as const) {
+      const data = await readGeneration(dir, pointer);
+      if (data) return data;
     }
   } catch {
     storageMode = 'compatibility';
