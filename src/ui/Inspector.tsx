@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Diamond, LockKeyhole, MousePointer2, RotateCcw } from 'lucide-react';
+import { Diamond, LockKeyhole, MousePointer2, RotateCcw, Sparkles } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, useEditor } from '../app/store';
 import {
@@ -219,6 +219,18 @@ export default function Inspector() {
                 </div>
                 {transformField('rotation', '回転', -3600, 3600, 1, '°')}
                 {transformField('opacity', '不透明度', 0, 100, 100, '%')}
+                <button
+                  className="puppet-inspector-button"
+                  onClick={() =>
+                    window.dispatchEvent(new Event('framecut:puppet-edit'))
+                  }
+                >
+                  <Sparkles size={14} />
+                  パペット変形を編集
+                </button>
+                <p className="panel-help">
+                  ピンを置いて部分的に動かします。元の素材は変更されません。
+                </p>
                 <div className="section-label">クロップ</div>
                 <div className="field-pair">
                   {(['left', 'right', 'top', 'bottom'] as const).map(

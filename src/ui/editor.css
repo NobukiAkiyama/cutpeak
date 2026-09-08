@@ -934,6 +934,46 @@ h3 {
   padding: 3px 7px;
   height: 26px;
 }
+.puppet-start,
+.puppet-inspector-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #7fa83f;
+  color: #d9f8a7;
+  background: #26361d;
+}
+.puppet-start {
+  min-height: 26px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.puppet-inspector-button {
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px;
+  border-radius: 6px;
+}
+.puppet-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 6px 12px;
+  color: #cad3df;
+  background: #1b2420;
+  border-bottom: 1px solid #3c5830;
+  font-size: 12px;
+}
+.puppet-toolbar strong { color: #d8f8a1; }
+.puppet-toolbar > span:not(.puppet-toolbar-spacer) { color: #98a69b; }
+.puppet-toolbar .choice { width: 84px; min-height: 27px; }
+.puppet-toolbar button { min-height: 27px; padding: 4px 8px; border-radius: 5px; }
+.puppet-toolbar button.active { color: #d8f8a1; border-color: #8db94b; background: #2d3c24; }
+.puppet-toolbar .primary { display: inline-flex; align-items: center; gap: 4px; }
+.puppet-toolbar-spacer { flex: 1; }
 .preview-canvas {
   display: block;
   width: 100%;
@@ -1053,6 +1093,50 @@ h3 {
   border-color: #728096;
   cursor: default;
 }
+.selection-box.puppet-selection {
+  border-color: #b8f84d;
+  cursor: crosshair;
+}
+.puppet-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  background-image: linear-gradient(#caff7d55 1px, transparent 1px), linear-gradient(90deg, #caff7d55 1px, transparent 1px);
+  background-size: 8.333% 8.333%;
+}
+.puppet-overlay.density-low { background-size: 12.5% 12.5%; }
+.puppet-overlay.density-high { background-size: 5.556% 5.556%; }
+.puppet-pin {
+  position: absolute;
+  z-index: 4;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  padding: 0;
+  border: 2px solid #17200b;
+  border-radius: 50%;
+  background: #b8f84d;
+  box-shadow: 0 0 0 3px #caff7d55, 0 2px 5px #0009;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+  cursor: grab;
+}
+.puppet-pin:active { cursor: grabbing; }
+.puppet-pin.locked { background: #8693a0; border-color: #27313a; }
+.puppet-pin.selected { width: 22px; height: 22px; min-height: 22px; box-shadow: 0 0 0 3px #b8f84d, 0 0 0 7px #b8f84d55; }
+.puppet-pin-actions {
+  position: absolute;
+  z-index: 5;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #546041;
+  border-radius: 6px;
+  background: #111914e8;
+}
+.puppet-pin-actions button { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; color: #e3f5cb; background: #26351f; border-color: #647c50; }
 .selection-label {
   position: absolute;
   left: -1px;

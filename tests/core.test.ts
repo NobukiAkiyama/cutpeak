@@ -78,6 +78,32 @@ describe('non-destructive commands', () => {
     ]);
     expect(clips[0].assetId).toBe(clips[1].assetId);
   });
+  it('stores puppet pins non-destructively and makes them undoable', () => {
+    const { p, c } = fixture();
+    const result = applyCommand(p, {
+      type: 'clip.update',
+      clipId: c.id,
+      patch: {
+        puppet: {
+          density: 'high',
+          pins: [
+            {
+              id: 'pin-1',
+              sourceX: 0.4,
+              sourceY: 0.5,
+              x: 0.65,
+              y: 0.45,
+              locked: false,
+            },
+          ],
+        },
+      },
+    })!;
+    expect(p.tracks[1].clips[0].puppet).toBeUndefined();
+    expect(findClip(result.project, c.id)!.clip.puppet?.pins[0].x).toBe(0.65);
+    expect(result.operation.description).toContain('パペット変形');
+    expect(() => validateProject(result.project)).not.toThrow();
+  });
   it('does not create zero-length boundary splits', () => {
     const { p, c } = fixture();
     expect(

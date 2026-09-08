@@ -15,6 +15,8 @@ import {
   Minimize,
   RotateCw,
   Upload,
+  Check,
+  Trash2,
 } from 'lucide-react';
 import {
   useEditor,
@@ -27,7 +29,10 @@ import {
 import {
   endFrame,
   findClip,
+  id,
+  makePuppetWarp,
   timecode,
+  type PuppetWarp,
   type Project,
   type TransformKey,
 } from '../core/model';
@@ -51,7 +56,10 @@ export default function Preview() {
     [mode, setMode] = useState(''),
     [viewScale, setViewScale] = useState(1),
     [viewOffset, setViewOffset] = useState({ x: 0, y: 0 }),
-    [panning, setPanning] = useState(false);
+    [panning, setPanning] = useState(false),
+    [puppetEditing, setPuppetEditing] = useState(false),
+    [showMesh, setShowMesh] = useState(true),
+    [selectedPin, setSelectedPin] = useState<string | null>(null);
   const viewScaleRef = useRef(viewScale),
     viewOffsetRef = useRef(viewOffset);
   viewScaleRef.current = viewScale;
@@ -65,6 +73,7 @@ export default function Preview() {
     drawing = useRef(false);
   const lastError = useRef('');
   const latency = useRef(0);
+  const puppetDraft = useRef<PuppetWarp | null>(null);
   const total = endFrame(project);
   useEffect(() => {
     if (!ready) return;
@@ -266,6 +275,96 @@ export default function Preview() {
     frame < c.startFrame + c.durationFrames;
   const transform = c ? values(c, frame) : null;
   const dimensions = c ? objectSize(c, project) : null;
+  const visualEditable = !!c && c.type !== 'audio' && !found?.track.locked;
+  const activePuppet = puppetDraft.current || c?.puppet;
+  const pinned = activePuppet?.pins || [];
+  const updatePuppet = (next: PuppetWarp) => {
+    if (!c || !puppetEditing) return;
+    puppetDraft.current = next;
+    api.preview([{ type: 'clip.update', clipId: c.id, patch: { puppet: next } }]);
+  };
+  const beginPuppet = () => {
+    if (!c || !visualEditable || puppetEditing) return;
+    api.begin('パペット変形');
+    puppetDraft.current = structuredClone(c.puppet || makePuppetWarp());
+    setSelectedPin(null);
+    setShowMesh(true);
+    setPuppetEditing(true);
+  };
+  const finishPuppet = (apply: boolean) => {
+    if (!puppetEditing) return;
+    if (apply) api.end();
+    else api.cancel();
+    puppetDraft.current = null;
+    setSelectedPin(null);
+    setPuppetEditing(false);
+  };
+  useEffect(() => {
+    const start = () => beginPuppet();
+    window.addEventListener('framecut:puppet-edit', start);
+    return () => window.removeEventListener('framecut:puppet-edit', start);
+  });
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (!puppetEditing) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        finishPuppet(false);
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        finishPuppet(true);
+      } else if ((event.key === 'Backspace' || event.key === 'Delete') && selectedPin) {
+        event.preventDefault();
+        updatePuppet({
+          ...(puppetDraft.current || makePuppetWarp()),
+          pins: pinned.filter((pin) => pin.id !== selectedPin),
+        });
+        setSelectedPin(null);
+      } else if (event.key.toLowerCase() === 'h') setShowMesh((value) => !value);
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  });
+  useEffect(() => {
+    if (puppetEditing && (!c || c.id !== selected)) finishPuppet(false);
+  });
+  function addPuppetPin(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!puppetEditing || !c || event.button !== 0) return;
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+    const pin = { id: id(), sourceX: x, sourceY: y, x, y, locked: false };
+    updatePuppet({ ...(puppetDraft.current || makePuppetWarp()), pins: [...pinned, pin] });
+    setSelectedPin(pin.id);
+  }
+  function movePuppetPin(event: ReactPointerEvent<HTMLButtonElement>, pinId: string) {
+    if (!puppetEditing) return;
+    event.stopPropagation();
+    event.preventDefault();
+    const node = event.currentTarget;
+    node.setPointerCapture(event.pointerId);
+    const move = (pointer: PointerEvent) => {
+      const host = node.parentElement?.getBoundingClientRect();
+      if (!host) return;
+      const x = Math.max(-0.4, Math.min(1.4, (pointer.clientX - host.left) / host.width));
+      const y = Math.max(-0.4, Math.min(1.4, (pointer.clientY - host.top) / host.height));
+      updatePuppet({
+        ...(puppetDraft.current || makePuppetWarp()),
+        pins: (puppetDraft.current?.pins || []).map((pin) =>
+          pin.id === pinId && !pin.locked ? { ...pin, x, y } : pin,
+        ),
+      });
+    };
+    const end = () => {
+      node.removeEventListener('pointermove', move);
+      node.removeEventListener('pointerup', end);
+      node.removeEventListener('pointercancel', end);
+    };
+    node.addEventListener('pointermove', move);
+    node.addEventListener('pointerup', end, { once: true });
+    node.addEventListener('pointercancel', end, { once: true });
+  }
   function manipulate(e: ReactPointerEvent, kind: 'move' | 'scale' | 'rotate') {
     if (!c || !transform || found?.track.locked || !stageRef.current) return;
     e.stopPropagation();
@@ -447,8 +546,40 @@ export default function Preview() {
               useEditor.setState({ quality: q as typeof quality })
             }
           />
+          {visualEditable && !puppetEditing && (
+            <button className="puppet-start" onClick={beginPuppet}>
+              パペット変形
+            </button>
+          )}
         </div>
       </div>
+      {puppetEditing && (
+        <div className="puppet-toolbar" aria-label="パペット変形の操作">
+          <strong>パペット変形</strong>
+          <span>クリックでピンを追加、ドラッグで変形</span>
+          <Choice
+            label="メッシュ密度"
+            value={(puppetDraft.current || makePuppetWarp()).density}
+            options={[
+              { value: 'low', label: '粗い' },
+              { value: 'standard', label: '標準' },
+              { value: 'high', label: '細かい' },
+            ]}
+            onChange={(density) =>
+              updatePuppet({
+                ...(puppetDraft.current || makePuppetWarp()),
+                density: density as PuppetWarp['density'],
+              })
+            }
+          />
+          <button className={showMesh ? 'active' : ''} onClick={() => setShowMesh((value) => !value)}>
+            メッシュ
+          </button>
+          <span className="puppet-toolbar-spacer" />
+          <button onClick={() => finishPuppet(false)}>キャンセル</button>
+          <button className="primary" onClick={() => finishPuppet(true)}><Check size={15} />適用</button>
+        </div>
+      )}
       <div className="preview-area preview-navigation" ref={areaRef}>
         <div
           className={`preview-stage ${panning ? 'panning' : ''}`}
@@ -498,7 +629,7 @@ export default function Preview() {
           )}
           {visible && transform && dimensions && (
             <div
-              className={`selection-box ${found?.track.locked ? 'locked' : ''}`}
+              className={`selection-box ${found?.track.locked ? 'locked' : ''} ${puppetEditing ? 'puppet-selection' : ''}`}
               style={{
                 left: `${(transform.x / project.width) * 100}%`,
                 top: `${(transform.y / project.height) * 100}%`,
@@ -506,10 +637,34 @@ export default function Preview() {
                 height: `${((dimensions.height * (1 - c!.crop.top - c!.crop.bottom) * transform.scaleY) / project.height) * 100}%`,
                 transform: `translate(-50%,-50%) rotate(${transform.rotation}deg)`,
               }}
-              onPointerDown={(e) => manipulate(e, 'move')}
+              onPointerDown={(e) => {
+                if (!puppetEditing) manipulate(e, 'move');
+              }}
             >
               <div className="selection-label">{c!.name}</div>
-              {!found?.track.locked && (
+              {puppetEditing ? (
+                <div className={`puppet-overlay ${showMesh ? `density-${activePuppet?.density || 'standard'}` : ''}`} onPointerDown={addPuppetPin}>
+                  {pinned.map((pin) => (
+                    <button
+                      key={pin.id}
+                      className={`puppet-pin ${pin.locked ? 'locked' : ''} ${selectedPin === pin.id ? 'selected' : ''}`}
+                      style={{ left: `${pin.x * 100}%`, top: `${pin.y * 100}%` }}
+                      aria-label={pin.locked ? '固定ピン' : 'パペットピン'}
+                      title={pin.locked ? '固定ピン' : 'ドラッグして変形'}
+                      onClick={(event) => { event.stopPropagation(); setSelectedPin(pin.id); }}
+                      onPointerDown={(event) => movePuppetPin(event, pin.id)}
+                    />
+                  ))}
+                  {selectedPin && (
+                    <div className="puppet-pin-actions" onPointerDown={(event) => event.stopPropagation()}>
+                      <button onClick={() => updatePuppet({ ...(puppetDraft.current || makePuppetWarp()), pins: pinned.map((pin) => pin.id === selectedPin ? { ...pin, locked: !pin.locked } : pin) })}>
+                        {pinned.find((pin) => pin.id === selectedPin)?.locked ? '固定を解除' : '固定'}
+                      </button>
+                      <button title="選択したピンを削除" onClick={() => { updatePuppet({ ...(puppetDraft.current || makePuppetWarp()), pins: pinned.filter((pin) => pin.id !== selectedPin) }); setSelectedPin(null); }}><Trash2 size={14} /></button>
+                    </div>
+                  )}
+                </div>
+              ) : !found?.track.locked && (
                 <>
                   {['nw', 'ne', 'sw', 'se'].map((pos) => (
                     <button

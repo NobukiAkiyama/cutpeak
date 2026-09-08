@@ -20,6 +20,20 @@ export type TransformKey =
   | 'rotation'
   | 'opacity';
 export type Transform = Record<TransformKey, Animatable>;
+export type PuppetDensity = 'low' | 'standard' | 'high';
+/** A pin stores its original UV coordinate and its current destination. */
+export interface PuppetPin {
+  id: string;
+  sourceX: number;
+  sourceY: number;
+  x: number;
+  y: number;
+  locked: boolean;
+}
+export interface PuppetWarp {
+  pins: PuppetPin[];
+  density: PuppetDensity;
+}
 export type ClipKind =
   | 'video'
   | 'audio'
@@ -69,6 +83,8 @@ export interface Clip {
   speed?: number;
   transform: Transform;
   crop: { left: number; top: number; right: number; bottom: number };
+  /** Optional, non-destructive mesh deformation for visual clips. */
+  puppet?: PuppetWarp;
   text?: string;
   style: TextStyle;
   shape: 'rectangle' | 'ellipse';
@@ -159,6 +175,10 @@ export const defaultTransform = (p: Project): Transform =>
       opacity: 1,
     }).map(([k, v]) => [k, { defaultValue: v, keyframes: [] }]),
   ) as unknown as Transform;
+export const makePuppetWarp = (): PuppetWarp => ({
+  pins: [],
+  density: 'standard',
+});
 export const makeTrack = (type: ClipKind, name?: string): Track => ({
   id: id(),
   name: name || 'トラック',
@@ -370,6 +390,31 @@ export function validateProject(value: unknown): asserts value is Project {
         c.transitionFrames < 0
       )
         throw Error('クリップの設定が不正です');
+      if (c.puppet) {
+        if (
+          !['low', 'standard', 'high'].includes(c.puppet.density) ||
+          !Array.isArray(c.puppet.pins) ||
+          c.puppet.pins.length > 32 ||
+          c.puppet.pins.some(
+            (pin) =>
+              typeof pin.id !== 'string' ||
+              !finite(pin.sourceX) ||
+              !finite(pin.sourceY) ||
+              !finite(pin.x) ||
+              !finite(pin.y) ||
+              pin.sourceX < 0 ||
+              pin.sourceX > 1 ||
+              pin.sourceY < 0 ||
+              pin.sourceY > 1 ||
+              pin.x < -1 ||
+              pin.x > 2 ||
+              pin.y < -1 ||
+              pin.y > 2 ||
+              typeof pin.locked !== 'boolean',
+          )
+        )
+          throw Error('パペット変形の設定が不正です');
+      }
     }
   }
   for (const a of p.assets) {

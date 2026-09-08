@@ -51,6 +51,7 @@ export type Command =
           | 'transition'
           | 'transitionFrames'
           | 'speed'
+          | 'puppet'
         >
       >;
     }
@@ -104,6 +105,7 @@ const label: Record<string, string> = {
   fadeInFrames: 'フェードイン',
   fadeOutFrames: 'フェードアウト',
   speed: '速度',
+  puppet: 'パペット変形',
 };
 function describe(v: unknown): string {
   if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')

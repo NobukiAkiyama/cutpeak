@@ -35,6 +35,20 @@ test('supports undo and redo keyboard shortcuts', async ({ page }) => {
   await expect(page.locator('.timeline-clip.clip-text')).toHaveCount(1);
 });
 
+test('adds and applies a non-destructive puppet pin', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('.boot-overlay')).toBeHidden();
+  await page.getByRole('tab', { name: 'テキスト' }).click();
+  await page.getByRole('button', { name: 'テキストを追加' }).click();
+
+  await page.getByRole('button', { name: 'パペット変形', exact: true }).click();
+  await expect(page.locator('.puppet-toolbar')).toBeVisible();
+  await page.locator('.puppet-overlay').click({ position: { x: 8, y: 8 } });
+  await expect(page.locator('.puppet-pin')).toHaveCount(1);
+  await page.getByRole('button', { name: '適用' }).click();
+  await expect(page.locator('.puppet-toolbar')).toHaveCount(0);
+});
+
 test('loads the history dialog only when it is opened', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.boot-overlay')).toBeHidden();

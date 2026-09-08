@@ -11,6 +11,121 @@ export function canvasOf(width: number, height: number): Surface {
   c.height = height;
   return c;
 }
+type Point = { x: number; y: number };
+const meshDivisions = { low: 8, standard: 12, high: 18 } as const;
+
+function warpedPoint(u: number, v: number, c: Clip): Point {
+  const pins = c.puppet?.pins || [];
+  if (!pins.length) return { x: u, y: v };
+  let dx = 0,
+    dy = 0,
+    total = 0;
+  for (const pin of pins) {
+    const distance = Math.hypot(u - pin.sourceX, v - pin.sourceY);
+    // A compact radial basis field keeps the deformation local and smooth.
+    const weight = 1 / Math.max(0.003, distance * distance);
+    dx += (pin.x - pin.sourceX) * weight;
+    dy += (pin.y - pin.sourceY) * weight;
+    total += weight;
+  }
+  return { x: u + dx / total, y: v + dy / total };
+}
+
+function drawWarpTriangle(
+  ctx: Context2D,
+  image: CanvasImageSource,
+  source: [Point, Point, Point],
+  destination: [Point, Point, Point],
+) {
+  const [s0, s1, s2] = source,
+    [d0, d1, d2] = destination;
+  const denominator =
+    s0.x * (s1.y - s2.y) +
+    s1.x * (s2.y - s0.y) +
+    s2.x * (s0.y - s1.y);
+  if (Math.abs(denominator) < 0.0001) return;
+  const matrix = (a: number, b: number, c: number) =>
+    (a * (s1.y - s2.y) +
+      b * (s2.y - s0.y) +
+      c * (s0.y - s1.y)) /
+    denominator;
+  const matrixY = (a: number, b: number, c: number) =>
+    (a * (s2.x - s1.x) +
+      b * (s0.x - s2.x) +
+      c * (s1.x - s0.x)) /
+    denominator;
+  const a = matrix(d0.x, d1.x, d2.x),
+    b = matrix(d0.y, d1.y, d2.y),
+    c = matrixY(d0.x, d1.x, d2.x),
+    d = matrixY(d0.y, d1.y, d2.y),
+    e =
+      d0.x - a * s0.x - c * s0.y,
+    f = d0.y - b * s0.x - d * s0.y;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(d0.x, d0.y);
+  ctx.lineTo(d1.x, d1.y);
+  ctx.lineTo(d2.x, d2.y);
+  ctx.closePath();
+  ctx.clip();
+  ctx.transform(a, b, c, d, e, f);
+  ctx.drawImage(image, 0, 0);
+  ctx.restore();
+}
+
+function puppetSurface(
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+  c: Clip,
+): Surface {
+  const crop = c.crop,
+    iw = (source as { width: number }).width,
+    ih = (source as { height: number }).height,
+    surface = canvasOf(Math.max(2, Math.round(width)), Math.max(2, Math.round(height))),
+    ctx = surface.getContext('2d') as Context2D;
+  const base = canvasOf(surface.width, surface.height),
+    baseCtx = base.getContext('2d') as Context2D;
+  baseCtx.drawImage(
+    source,
+    iw * crop.left,
+    ih * crop.top,
+    iw * (1 - crop.left - crop.right),
+    ih * (1 - crop.top - crop.bottom),
+    0,
+    0,
+    base.width,
+    base.height,
+  );
+  const n = meshDivisions[c.puppet!.density];
+  for (let row = 0; row < n; row++)
+    for (let column = 0; column < n; column++) {
+      const u0 = column / n,
+        v0 = row / n,
+        u1 = (column + 1) / n,
+        v1 = (row + 1) / n;
+      const sourcePoints: [Point, Point, Point, Point] = [
+        { x: u0 * base.width, y: v0 * base.height },
+        { x: u1 * base.width, y: v0 * base.height },
+        { x: u0 * base.width, y: v1 * base.height },
+        { x: u1 * base.width, y: v1 * base.height },
+      ];
+      const destination = [
+        warpedPoint(u0, v0, c),
+        warpedPoint(u1, v0, c),
+        warpedPoint(u0, v1, c),
+        warpedPoint(u1, v1, c),
+      ].map((point) => ({ x: point.x * surface.width, y: point.y * surface.height })) as [
+        Point,
+        Point,
+        Point,
+        Point,
+      ];
+      drawWarpTriangle(ctx, base, [sourcePoints[0], sourcePoints[1], sourcePoints[2]], [destination[0], destination[1], destination[2]]);
+      drawWarpTriangle(ctx, base, [sourcePoints[2], sourcePoints[1], sourcePoints[3]], [destination[2], destination[1], destination[3]]);
+    }
+  return surface;
+}
 let measurement: Context2D | undefined;
 function textMetrics(c: Clip, p: Project) {
   measurement ??= canvasOf(1, 1).getContext('2d') as Context2D;
@@ -260,11 +375,19 @@ precision mediump float;in vec2 uv;uniform sampler2D tex;uniform float opacity;o
     for (const { clip: c, transform: t, alpha } of items) {
       const src = this.source(c, p, images);
       if (!src) continue;
-      const crop = c.crop;
+      const warped = c.puppet?.pins.length
+        ? puppetSurface(src.image, src.width, src.height, c)
+        : undefined;
+      const drawing = warped
+        ? { image: warped as CanvasImageSource, width: warped.width, height: warped.height }
+        : src;
+      const crop = warped
+        ? { left: 0, top: 0, right: 0, bottom: 0 }
+        : c.crop;
       const cw = 1 - crop.left - crop.right,
         ch = 1 - crop.top - crop.bottom;
-      const sw = src.width * cw,
-        sh = src.height * ch;
+      const sw = drawing.width * cw,
+        sh = drawing.height * ch;
       const angle = (t.rotation * Math.PI) / 180,
         cos = Math.cos(angle),
         sin = Math.sin(angle);
@@ -302,7 +425,7 @@ precision mediump float;in vec2 uv;uniform sampler2D tex;uniform float opacity;o
           g.RGBA,
           g.RGBA,
           g.UNSIGNED_BYTE,
-          src.image as TexImageSource,
+          drawing.image as TexImageSource,
         );
         g.drawArrays(g.TRIANGLES, 0, 6);
       } else {
@@ -313,10 +436,10 @@ precision mediump float;in vec2 uv;uniform sampler2D tex;uniform float opacity;o
         ctx.rotate(angle);
         ctx.scale(t.scaleX, t.scaleY);
         ctx.globalAlpha = opacity;
-        const iw = (src.image as ImageBitmap).width,
-          ih = (src.image as ImageBitmap).height;
+        const iw = (drawing.image as { width: number }).width,
+          ih = (drawing.image as { height: number }).height;
         ctx.drawImage(
-          src.image,
+          drawing.image,
           iw * crop.left,
           ih * crop.top,
           iw * cw,
