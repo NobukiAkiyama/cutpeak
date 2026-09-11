@@ -483,7 +483,7 @@ export default function App() {
         <div className="section-label">このアプリについて</div>
         <div className="export-detail">
           <span>製作者</span>
-          <strong>yazirushi</strong>
+          <strong>おかゆこびっと</strong>
         </div>
         <div className="section-label">ブラウザ診断</div>
         <div className="diagnostics">
