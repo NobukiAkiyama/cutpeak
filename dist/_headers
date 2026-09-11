@@ -1,0 +1,17 @@
+/
+  Cross-Origin-Opener-Policy: same-origin
+  Cache-Control: no-cache
+
+/index.html
+  Cross-Origin-Opener-Policy: same-origin
+  Cache-Control: no-cache
+
+/boot.js
+  Cache-Control: no-cache
+
+/system.sys
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: no-cache
+
+/service-worker.js
+  Cache-Control: no-cache
