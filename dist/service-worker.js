@@ -1,4 +1,4 @@
-const CACHE='framecut-03895aad9f3a';const ASSETS=["/audio-worklet.js","/boot.js","/favicon-32.png","/favicon-v4.jpg","/icon-192.png","/icon-512.png","/index.html","/manifest.webmanifest","/privacy.html","/system.sys"];
+const CACHE='framecut-6e2bbee6009f';const ASSETS=["/audio-worklet.js","/boot.js","/favicon-32.png","/favicon-v4.jpg","/icon-192.png","/icon-512.png","/index.html","/manifest.webmanifest","/privacy.html","/system.sys"];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS))));
 self.addEventListener('message',event=>{if(event.data?.type==='SKIP_WAITING')void self.skipWaiting();});
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('framecut-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
