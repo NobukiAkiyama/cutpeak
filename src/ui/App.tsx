@@ -33,6 +33,7 @@ import { Modal, bytes, Field } from './controls';
 const ProjectDialog = lazy(() => import('./ProjectDialog'));
 const HistoryDialog = lazy(() => import('./HistoryDialog'));
 const ExportDialog = lazy(() => import('./ExportDialog'));
+const NleExportDialog = lazy(() => import('./NleExportDialog'));
 const DriveDialog = lazy(() => import('./DriveDialog'));
 export default function App() {
   const state = useEditor();
@@ -52,6 +53,7 @@ export default function App() {
       | 'project'
       | 'history'
       | 'export'
+      | 'nle-export'
       | 'drive'
       | 'settings'
       | 'shortcuts'
@@ -396,6 +398,7 @@ export default function App() {
             onClose={() => setModal(null)}
             onDrive={() => setModal('drive')}
             onExport={() => setModal('export')}
+            onNleExport={() => setModal('nle-export')}
           />
         </Suspense>
       )}
@@ -406,7 +409,12 @@ export default function App() {
       )}
       {modal === 'export' && (
         <Suspense fallback={null}>
-          <ExportDialog open onClose={() => setModal(null)} />
+          <ExportDialog open onClose={() => setModal(null)} onNleExport={() => setModal('nle-export')} />
+        </Suspense>
+      )}
+      {modal === 'nle-export' && (
+        <Suspense fallback={null}>
+          <NleExportDialog open onClose={() => setModal(null)} />
         </Suspense>
       )}
       {modal === 'drive' && (

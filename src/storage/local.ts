@@ -321,7 +321,7 @@ export async function saveDownload(
       suggestedName: safeName,
       types: [
         {
-          description: '動画ファイル',
+          description: blob.type === 'application/zip' ? 'ZIPファイル' : '動画ファイル',
           accept: { [blob.type || 'application/octet-stream']: [extension] },
         },
       ],

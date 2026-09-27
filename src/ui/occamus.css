@@ -1168,6 +1168,8 @@ button:hover {
 .project-save-card .primary { min-height: 44px; font-size: 13px; white-space: normal; }
 .project-save-card .project-download-status { display: block; margin: 12px 0 0; color: #d5b9f2; font-size: 12px; line-height: 1.7; }
 .project-save-alternatives { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.project-save-alternatives .project-nle-link { grid-column: 1 / -1; background: #2b2135; border: 1px solid #6b4d84; border-radius: 10px; }
+.project-save-alternatives .project-nle-link:hover { background: #3a2949; border-color: #ad82e1; }
 .project-save-alternatives button { padding: 13px 10px; gap: 10px; background: transparent; text-align: left; white-space: normal; }
 .project-save-alternatives button:hover { background: #29232f; }
 .project-save-alternatives button > span { flex: 1; }
@@ -1175,8 +1177,32 @@ button:hover {
 .project-save-alternatives strong { font-size: 12px; display: block; }
 .project-save-alternatives small { font-size: 11px; display: block; color: #a79aaf; margin-top: 4px; line-height: 1.6; }
 .project-autosave { display: flex; gap: 8px; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid #3a3044; font-size: 11px; color: #a396af; line-height: 1.7; }
+.nle-intro, .nle-package-heading { display: flex; align-items: center; gap: 13px; }
+.nle-intro { margin: 4px 0 16px; }
+.nle-intro-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; color: #c9a2f8; background: #382946; }
+.nle-intro strong, .nle-package-heading strong { display: block; overflow-wrap: anywhere; }
+.nle-intro small, .nle-package-heading small { display: block; color: #afa2bb; margin-top: 4px; font-size: 11px; line-height: 1.5; }
+.nle-package-card { padding: 18px; border-radius: 12px; border: 1px solid #654d78; background: #27202e; }
+.nle-package-heading svg { flex-shrink: 0; color: #bf92ef; }
+.nle-package-heading > div { min-width: 0; }
+.nle-package-facts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #46384f; color: #c1b4cb; font-size: 12px; }
+.nle-package-facts span { display: inline-flex; align-items: center; gap: 6px; }
+.nle-bake-note { margin: 12px 0 0; color: #c8a7e9; font-size: 12px; line-height: 1.6; }
+.nle-apps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.nle-apps > div { padding: 12px; border: 1px solid #41374a; border-radius: 9px; }
+.nle-apps strong { display: block; font-size: 12px; }
+.nle-apps small { display: block; color: #afa2bb; font-size: 11px; line-height: 1.6; margin-top: 5px; }
+.nle-readme-note { color: #a99bb3; font-size: 11px; line-height: 1.6; margin: 12px 0 18px; }
+.nle-direct-download { width: 100%; justify-content: center; font-size: 11px; }
+.export-nle-link { display: flex; align-items: center; gap: 11px; width: 100%; padding: 12px; margin-bottom: 16px; border: 1px solid #574269; border-radius: 10px; text-align: left; background: #292130; }
+.export-nle-link:hover { background: #362941; }
+.export-nle-link > svg { color: #b891e8; flex-shrink: 0; }
+.export-nle-link strong, .export-nle-link small { display: block; }
+.export-nle-link strong { font-size: 12px; }
+.export-nle-link small { color: #a99bb3; font-size: 11px; margin-top: 3px; }
 .project-autosave svg { flex-shrink: 0; }
 @media (max-width: 600px) {
+  .nle-apps { grid-template-columns: 1fr; }
   .project-entry-grid, .project-save-alternatives, .project-form-options { grid-template-columns: 1fr; }
   .project-manager .project-nav [role='tab'] { padding: 9px 5px; gap: 5px; font-size: 12px; }
   .project-manager .project-nav [role='tab'] svg { display: none; }

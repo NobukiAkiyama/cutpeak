@@ -4,6 +4,7 @@ import {
   FolderOpen,
   Download,
   Film,
+  Layers3,
   Trash2,
   Cloud,
   ArrowRight,
@@ -30,11 +31,13 @@ export default function ProjectDialog({
   onClose,
   onDrive,
   onExport,
+  onNleExport,
 }: {
   open: boolean;
   onClose: () => void;
   onDrive: () => void;
   onExport: () => void;
+  onNleExport: () => void;
 }) {
   const { project, repository, projects, busy, saveStatus } = useEditor();
   const [name, setName] = useState('新しいプロジェクト');
@@ -347,6 +350,14 @@ export default function ProjectDialog({
               )}
             </div>
             <div className="project-save-alternatives">
+              <button className="project-nle-link" disabled={disabled} onClick={onNleExport}>
+                <Layers3 size={20} />
+                <span>
+                  <strong>編集ソフトで続きを編集したい</strong>
+                  <small>Final Cut Pro・DaVinci Resolve 用のタイムラインと素材をZIPに保存</small>
+                </span>
+                <ArrowRight size={17} />
+              </button>
               <button disabled={disabled} onClick={onDrive}>
                 <Cloud size={19} />
                 <span>

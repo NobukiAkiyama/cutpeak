@@ -1,5 +1,5 @@
 import { type Clip, type Project } from '../core/model';
-import { sceneAt } from '../core/timeline';
+import { sceneAt, values, visualAlpha } from '../core/timeline';
 type Surface = OffscreenCanvas | HTMLCanvasElement;
 type Context2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 export type FrameImage = { clipId: string; bitmap: ImageBitmap };
@@ -221,6 +221,69 @@ function textSurface(c: Clip, p: Project): Surface {
   });
   return s;
 }
+export function staticClipSurface(c: Clip, p: Project): Surface {
+  if (c.type !== 'shape') return textSurface(c, p);
+  const size = objectSize(c, p);
+  const surface = canvasOf(Math.round(size.width), Math.round(size.height));
+  const ctx = surface.getContext('2d') as Context2D;
+  ctx.fillStyle = c.color;
+  if (c.shape === 'ellipse') {
+    ctx.beginPath();
+    ctx.ellipse(
+      surface.width / 2,
+      surface.height / 2,
+      surface.width / 2,
+      surface.height / 2,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  } else ctx.fillRect(0, 0, surface.width, surface.height);
+  return surface;
+}
+
+/** Draw one clip onto a transparent canvas for effects that FCPXML cannot express. */
+export function isolatedClipSurface(
+  c: Clip,
+  p: Project,
+  frame: number,
+  bitmap?: ImageBitmap,
+): Surface {
+  const surface = canvasOf(p.width, p.height);
+  const ctx = surface.getContext('2d') as Context2D;
+  const size = objectSize(c, p);
+  const source = bitmap || staticClipSurface(c, p);
+  const warped = c.puppet?.pins.length
+    ? puppetSurface(source, size.width, size.height, c)
+    : undefined;
+  const drawing = warped || source;
+  const crop = warped
+    ? { left: 0, top: 0, right: 0, bottom: 0 }
+    : c.crop;
+  const cw = 1 - crop.left - crop.right;
+  const ch = 1 - crop.top - crop.bottom;
+  const transform = values(c, frame);
+  const alpha = visualAlpha(c, frame);
+  ctx.save();
+  ctx.translate(transform.x, transform.y);
+  ctx.rotate((transform.rotation * Math.PI) / 180);
+  ctx.scale(transform.scaleX, transform.scaleY);
+  ctx.globalAlpha = Math.max(0, Math.min(1, transform.opacity * alpha));
+  ctx.drawImage(
+    drawing,
+    drawing.width * crop.left,
+    drawing.height * crop.top,
+    drawing.width * cw,
+    drawing.height * ch,
+    -(size.width * cw) / 2,
+    -(size.height * ch) / 2,
+    size.width * cw,
+    size.height * ch,
+  );
+  ctx.restore();
+  return surface;
+}
 export class SceneRenderer {
   readonly mode: 'webgl2' | 'canvas2d';
   private gl: WebGL2RenderingContext | null = null;
@@ -320,26 +383,7 @@ precision mediump float;in vec2 uv;uniform sampler2D tex;uniform float opacity;o
     ]);
     let cached = this.staticTextures.get(c.id);
     if (!cached || cached.key !== key) {
-      let surface: Surface;
-      if (c.type === 'shape') {
-        const size = objectSize(c, p);
-        surface = canvasOf(Math.round(size.width), Math.round(size.height));
-        const ctx = surface.getContext('2d') as Context2D;
-        ctx.fillStyle = c.color;
-        if (c.shape === 'ellipse') {
-          ctx.beginPath();
-          ctx.ellipse(
-            surface.width / 2,
-            surface.height / 2,
-            surface.width / 2,
-            surface.height / 2,
-            0,
-            0,
-            Math.PI * 2,
-          );
-          ctx.fill();
-        } else ctx.fillRect(0, 0, surface.width, surface.height);
-      } else surface = textSurface(c, p);
+      const surface = staticClipSurface(c, p);
       cached = { key, surface };
       this.staticTextures.set(c.id, cached);
     }

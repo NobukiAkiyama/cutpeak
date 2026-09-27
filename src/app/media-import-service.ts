@@ -186,9 +186,10 @@ export async function importFiles(
   await persistNow();
 }
 
-export async function projectFiles(project: Project) {
+export async function projectFiles(project: Project, assetIds?: Set<string>) {
   const result: { id: string; file: File }[] = [];
   for (const asset of project.assets) {
+    if (assetIds && !assetIds.has(asset.id)) continue;
     const file = await getAsset(project.id, asset.id);
     if (file)
       result.push({

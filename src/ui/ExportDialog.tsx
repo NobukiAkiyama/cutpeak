@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   LoaderCircle,
   Film,
+  Layers3,
   AlertCircle,
 } from 'lucide-react';
 import { Modal, Choice, Field, NumberField, bytes } from './controls';
@@ -15,9 +16,11 @@ import { saveDownload, supportsSaveLocation } from '../storage/local';
 export default function ExportDialog({
   open,
   onClose,
+  onNleExport,
 }: {
   open: boolean;
   onClose: () => void;
+  onNleExport: () => void;
 }) {
   const { project, offline } = useEditor();
   const [format, setFormat] = useState<'mp4' | 'webm'>('mp4'),
@@ -179,6 +182,12 @@ export default function ExportDialog({
           </small>
         </div>
       </div>
+      {!running && !result && (
+        <button className="export-nle-link" onClick={onNleExport}>
+          <Layers3 size={18} />
+          <span><strong>編集ソフトで続きを編集する</strong><small>Final Cut Pro・DaVinci Resolve 用のZIP</small></span>
+        </button>
+      )}
       <fieldset disabled={running}>
         <Field label="ファイル形式">
           <Choice
