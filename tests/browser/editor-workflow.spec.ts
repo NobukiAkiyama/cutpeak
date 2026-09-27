@@ -1,5 +1,15 @@
 import { expect, test } from '@playwright/test';
 
+test('opens the file picker from the empty preview', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('.boot-overlay')).toBeHidden();
+
+  const picker = page.waitForEvent('filechooser');
+  await page.locator('.stage-placeholder').getByRole('button', { name: '素材を読み込む' }).click();
+  const chooser = await picker;
+  expect(chooser.isMultiple()).toBe(true);
+});
+
 test('adds a text clip, restores it with redo, and persists it after reload', async ({
   page,
 }) => {

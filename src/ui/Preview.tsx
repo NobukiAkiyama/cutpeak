@@ -620,6 +620,7 @@ export default function Preview() {
               <p>動画を追加して編集を始める</p>
               <button
                 className="primary"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => input.current?.click()}
               >
                 <Upload size={16} />
