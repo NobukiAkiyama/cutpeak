@@ -57,6 +57,24 @@ test('loads the history dialog only when it is opened', async ({ page }) => {
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('編集履歴');
   await expect(
-    dialog.getByRole('button', { name: 'スナップショット' }),
+    dialog.getByRole('button', { name: '記録', exact: true }),
   ).toBeVisible();
+});
+
+test('records a history comment with the keyboard', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('.boot-overlay')).toBeHidden();
+
+  await page.getByRole('button', { name: '履歴' }).click();
+  const dialog = page.getByRole('dialog');
+  const record = dialog.getByRole('button', { name: '記録', exact: true });
+  const message = dialog.getByRole('textbox', { name: 'メッセージ' });
+  await expect(record).toBeDisabled();
+  await message.fill('冒頭のカットを詰めた');
+  await expect(record).toBeEnabled();
+  await message.press('ControlOrMeta+Enter');
+  await expect(message).toHaveValue('');
+  await expect(dialog.locator('.graph-list')).toContainText(
+    '冒頭のカットを詰めた',
+  );
 });

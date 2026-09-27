@@ -558,6 +558,17 @@ button:hover {
 .commit-item:after {
   background: #59416d;
 }
+.change-item.selected {
+  background: #31233f;
+}
+.history-count {
+  background: #33263f;
+}
+.branch-badge {
+  background: #382a47;
+  border-color: #a67bef;
+  color: #d6b6ff;
+}
 .export-progress {
   background: #282032;
 }

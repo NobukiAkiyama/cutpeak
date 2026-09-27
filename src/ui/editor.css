@@ -1968,10 +1968,134 @@ h3 {
   font-size: 13px;
   line-height: 1.8;
   margin-bottom: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .commit-details > small {
   display: block;
   font-size: 12px;
+}
+.history-source {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-right: 18px;
+}
+.history-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 2px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.6px;
+  color: #aeb8c6;
+}
+div.history-section {
+  margin-top: 14px;
+  padding-left: 4px;
+}
+.history-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #30363e;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.change-list {
+  max-height: 140px;
+  overflow: auto;
+  margin-bottom: 8px;
+}
+.change-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px 6px 24px;
+  text-align: left;
+  font-size: 12px;
+}
+.change-item > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.change-item small {
+  color: #90a0b4;
+  flex-shrink: 0;
+}
+.change-item.selected {
+  background: #344331;
+}
+.commit-message {
+  width: 100%;
+  min-height: 60px;
+  max-height: 160px;
+  resize: none;
+  field-sizing: content;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.graph-list {
+  max-height: 300px;
+  padding-right: 0;
+}
+.graph-list .commit-item:last-child:after {
+  display: block;
+}
+.graph-list > .graph-entry:last-child > .commit-item:last-child:after {
+  display: none;
+}
+.graph-edit {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.graph-edit:after {
+  top: 0;
+}
+.graph-edit .commit-dot {
+  position: relative;
+  z-index: 1;
+  height: 16px;
+  background: transparent;
+  border: 0;
+}
+.graph-edit .commit-dot:before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.graph-edit strong {
+  font-size: 11px;
+  color: #c4ceda;
+}
+.graph-edit small {
+  margin-top: 0;
+}
+.branch-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.branch-badge {
+  padding: 0 8px;
+  border: 1px solid #657853;
+  border-radius: 999px;
+  background: #34402c;
+  color: #ddf5bd;
+  font-size: 11px;
+  line-height: 18px;
 }
 .semantic-change {
   padding: 14px 0;
@@ -2503,6 +2627,13 @@ h3 {
   }
   .commit-list {
     max-height: 240px;
+  }
+  .history-source {
+    padding-right: 0;
+  }
+  button.history-section,
+  .change-item {
+    min-height: 44px;
   }
   .commit-details {
     border: 0;
