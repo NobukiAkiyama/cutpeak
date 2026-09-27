@@ -29,6 +29,8 @@ describe('編集ソフト用書き出し', () => {
         durationFrames: 90, sourceInUs: 0 }],
     );
     expect(content).toContain('frameDuration="1001/30000s"');
+    expect(content).toContain('<format id="r1" name="FFVideoFormat1080p2997" frameDuration="1001/30000s" width="1920" height="1080"/>');
+    expect(content).toContain('<format id="r2" name="FFVideoFormat720p2997" frameDuration="1001/30000s" width="1280" height="720"/>');
     expect(content).not.toContain('FFVideoFormat1920x1080');
     expect(content).toContain('duration="3003/1000s"');
     expect(content).toContain('left="17.777778"');
@@ -81,7 +83,16 @@ describe('編集ソフト用書き出し', () => {
       ],
     );
     expect(content).toContain('scale="0.3125 0.3125"');
+    expect(content).toContain('name="FFVideoFormatRateUndefined" width="600" height="200"');
     expect(content).toContain('value="4s" interp="linear"');
     expect(content).toContain('start="1s" duration="2s"');
+  });
+
+  it('縦長のカスタム画面サイズでも有効な既定形式と実寸を出す', () => {
+    const project = makeProject('縦長', 1080, 1920);
+    const clip = makeClip(project, 'text', 0);
+    project.tracks[0].clips = [clip];
+    const content = buildFcpxml(project, [], []);
+    expect(content).toContain('<format id="r1" name="FFVideoFormat1080p30" frameDuration="1/30s" width="1080" height="1920"/>');
   });
 });

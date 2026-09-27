@@ -57,6 +57,27 @@ const sourceTime = (item: NleItem, localFrame: number, p: Project) =>
 const uri = (path: string) =>
   `./${path.split('/').map(encodeURIComponent).join('/')}`;
 
+function videoFormatName(width: number, height: number, p: Project) {
+  const rate = `${p.fps.numerator}/${p.fps.denominator}`;
+  const suffix: Record<string, string> = {
+    '24/1': '24',
+    '25/1': '25',
+    '30000/1001': '2997',
+    '30/1': '30',
+    '60000/1001': '5994',
+    '60/1': '60',
+  };
+  const prefix: Record<string, string> = {
+    '1920x1080': '1080',
+    '1280x720': '720',
+    '3840x2160': '3840x2160',
+  };
+  const size = prefix[`${width}x${height}`];
+  return size && suffix[rate]
+    ? `FFVideoFormat${size}p${suffix[rate]}`
+    : 'FFVideoFormat1080p30';
+}
+
 function framesFor(
   item: NleItem,
   p: Project,
@@ -253,7 +274,7 @@ export function buildFcpxml(
   if (!total) throw Error('書き出すクリップがありません');
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
   const formatFor = new Map<string, string>();
-  const formats = [`<format id="r1" frameDuration="${atFrame(1, p)}" width="${p.width}" height="${p.height}"/>`];
+  const formats = [`<format id="r1" name="${videoFormatName(p.width, p.height, p)}" frameDuration="${atFrame(1, p)}" width="${p.width}" height="${p.height}"/>`];
   let resource = 2;
   for (const asset of assets) {
     if (asset.kind === 'audio') continue;
@@ -261,7 +282,10 @@ export function buildFcpxml(
     if (!formatFor.has(key)) {
       const id = `r${resource++}`;
       formatFor.set(key, id);
-      formats.push(`<format id="${id}" ${asset.kind === 'image' ? '' : `frameDuration="${atFrame(1, p)}" `}width="${asset.width}" height="${asset.height}"/>`);
+      const name = asset.kind === 'image'
+        ? 'FFVideoFormatRateUndefined'
+        : videoFormatName(asset.width, asset.height, p);
+      formats.push(`<format id="${id}" name="${name}" ${asset.kind === 'image' ? '' : `frameDuration="${atFrame(1, p)}" `}width="${asset.width}" height="${asset.height}"/>`);
     }
   }
   const ids = new Map(assets.map((asset) => [asset.id, `a${resource++}`]));
