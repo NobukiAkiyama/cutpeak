@@ -165,7 +165,7 @@ export default function NleExportDialog({
         )}
       </div>
       <div className="nle-apps">
-        <div><strong>Final Cut Pro</strong><small>ZIPを展開してXMLを読み込みます。素材は自動でつながります。</small></div>
+        <div><strong>Final Cut Pro</strong><small>ZIPを展開してXMLを読み込みます。素材が見つからない場合は、同梱のmediaフォルダから再リンクします。</small></div>
         <div><strong>DaVinci Resolve</strong><small>XMLを読み込み、必要に応じて同梱のmediaフォルダを指定します。</small></div>
       </div>
       <p className="nle-readme-note">詳しい読み込み手順はZIP内の README.txt に入ります。</p>

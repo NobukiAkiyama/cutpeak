@@ -3,6 +3,7 @@ import { MediaEngine } from '../engine';
 import { canvasOf, isolatedClipSurface, staticClipSurface } from '../../render/renderer';
 import { buildFcpxml, type NleAsset, type NleItem } from './fcpxml';
 import { makeZip, type ZipEntry } from './zip';
+import { quickTimeStartUs } from './timecode';
 
 export interface NleExportJob {
   project: Project;
@@ -49,7 +50,7 @@ async function png(surface: OffscreenCanvas | HTMLCanvasElement) {
   );
 }
 
-function fromAsset(asset: Asset, path: string): NleAsset {
+function fromAsset(asset: Asset, path: string, timecodeStartUs = 0): NleAsset {
   return {
     id: asset.id,
     name: asset.name,
@@ -59,6 +60,7 @@ function fromAsset(asset: Asset, path: string): NleAsset {
     height: Math.max(1, asset.height || 1),
     durationUs: asset.durationUs,
     hasAudio: asset.hasAudio,
+    timecodeStartUs,
   };
 }
 
@@ -78,12 +80,17 @@ export async function runNleExport(
   const assets: NleAsset[] = [];
   const items: NleItem[] = [];
   const generated = new Set<string>();
+  const sourceOrigins = new Map<string, number>();
   const projectName = basename(p.name).replace(/\.+$/, '') || 'Cutpeak';
   for (const [index, asset] of p.assets.filter((asset) => used.has(asset.id)).entries()) {
     const file = files.get(asset.id)!;
     const path = `media/${String(index + 1).padStart(3, '0')}_${basename(file.name)}`;
     zip.push({ name: path, data: file });
-    assets.push(fromAsset(asset, path));
+    const timecodeStartUs = asset.kind === 'video' && /\.(mov|mp4|m4v)$/i.test(file.name)
+      ? await quickTimeStartUs(file)
+      : 0;
+    sourceOrigins.set(asset.id, timecodeStartUs);
+    assets.push(fromAsset(asset, path, timecodeStartUs));
   }
   onProgress(0.04);
   const addGenerated = (id: string, name: string, blob: Blob, width: number, height: number) => {
@@ -126,7 +133,8 @@ export async function runNleExport(
           }
           if (assetId)
             items.push({ clip, trackIndex, assetId, startFrame: clip.startFrame,
-              durationFrames: clip.durationFrames, sourceInUs: clip.sourceInUs });
+              durationFrames: clip.durationFrames,
+              sourceInUs: clip.sourceInUs + (sourceOrigins.get(assetId) || 0) });
           continue;
         }
         if (!engine) throw Error('画像化エンジンを利用できません');
@@ -167,7 +175,7 @@ export async function runNleExport(
         if (clip.assetId && p.assets.find((asset) => asset.id === clip.assetId)?.hasAudio)
           items.push({ clip, trackIndex, assetId: clip.assetId,
             startFrame: clip.startFrame, durationFrames: clip.durationFrames,
-            sourceInUs: clip.sourceInUs, audioOnly: true });
+            sourceInUs: clip.sourceInUs + (sourceOrigins.get(clip.assetId) || 0), audioOnly: true });
       }
     }
   } finally {
@@ -181,6 +189,7 @@ export async function runNleExport(
     `${p.name} — 編集ソフト用書き出し`,
     '',
     'Final Cut Pro: ZIP を展開し、ファイル > 読み込む > XML で .fcpxml を開きます。',
+    '素材が見つからない警告が出たら、読み込んだイベントを選択し、ファイル > ファイルを再接続 > オリジナルのメディアから、展開した media フォルダ内の素材を指定します。',
     'DaVinci Resolve: ZIP を「ムービー」など Resolve が参照できる場所に展開します。',
     'ファイル > 読み込み > タイムラインで .fcpxml を開き、素材が見つからない場合は展開した media フォルダを指定して再リンクします。',
     '',

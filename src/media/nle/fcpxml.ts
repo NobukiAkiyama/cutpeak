@@ -17,6 +17,7 @@ export interface NleAsset {
   durationUs: number;
   hasAudio: boolean;
   generated?: boolean;
+  timecodeStartUs?: number;
 }
 
 export interface NleItem {
@@ -277,27 +278,27 @@ export function buildFcpxml(
   const formats = [`<format id="r1" name="${videoFormatName(p.width, p.height, p)}" frameDuration="${atFrame(1, p)}" width="${p.width}" height="${p.height}"/>`];
   let resource = 2;
   for (const asset of assets) {
-    if (asset.kind === 'audio') continue;
+    // Final Cut Pro checks the source frame rate when connecting media. The
+    // project rate is not necessarily the rate of an imported video, so let
+    // Final Cut Pro read the video format from the media file itself.
+    if (asset.kind !== 'image') continue;
     const key = `${asset.width}x${asset.height}:${asset.kind === 'image' ? 'still' : 'video'}`;
     if (!formatFor.has(key)) {
       const id = `r${resource++}`;
       formatFor.set(key, id);
-      const name = asset.kind === 'image'
-        ? 'FFVideoFormatRateUndefined'
-        : videoFormatName(asset.width, asset.height, p);
-      formats.push(`<format id="${id}" name="${name}" ${asset.kind === 'image' ? '' : `frameDuration="${atFrame(1, p)}" `}width="${asset.width}" height="${asset.height}"/>`);
+      formats.push(`<format id="${id}" name="FFVideoFormatRateUndefined" width="${asset.width}" height="${asset.height}"/>`);
     }
   }
   const ids = new Map(assets.map((asset) => [asset.id, `a${resource++}`]));
   const resources = assets.map((asset) => {
-    const format = asset.kind === 'audio'
-      ? ''
-      : ` format="${formatFor.get(`${asset.width}x${asset.height}:${asset.kind === 'image' ? 'still' : 'video'}`)}"`;
+    const format = asset.kind === 'image'
+      ? ` format="${formatFor.get(`${asset.width}x${asset.height}:still`)}"`
+      : '';
     const video = asset.kind === 'audio' ? '' : ' hasVideo="1" videoSources="1"';
     const audio = asset.hasAudio || asset.kind === 'audio'
       ? ' hasAudio="1" audioSources="1" audioChannels="2" audioRate="48000"'
       : '';
-    return `<asset id="${ids.get(asset.id)}" name="${xml(asset.name)}" start="0s" duration="${atUs(asset.durationUs)}"${video}${format}${audio}><media-rep kind="original-media" src="${xml(uri(asset.path))}"/></asset>`;
+    return `<asset id="${ids.get(asset.id)}" name="${xml(asset.name)}" start="${atUs(asset.timecodeStartUs || 0)}" duration="${atUs(asset.durationUs)}"${video}${format}${audio}><media-rep kind="original-media" src="${xml(uri(asset.path))}"/></asset>`;
   });
   const visualItems = items.filter((item) =>
     item.clip.type !== 'audio' && !item.audioOnly && !p.tracks[item.trackIndex].hidden,
